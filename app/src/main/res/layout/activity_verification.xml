@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    tools:context=".Activity.VerificationPhoneNumberActivity">
+
+    <!-- Title Text -->
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enter Verification Code"
+        android:textSize="24sp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/codeInputContainer"
+        android:layout_marginTop="40dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp" />
+
+    <!-- Caption Text -->
+    <TextView
+        android:id="@+id/caption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Please check your SMS inbox to get the code."
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textAlignment="center"
+        app:layout_constraintTop_toBottomOf="@id/title"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="20dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp" />
+
+    <!-- Input Container for the Code -->
+    <LinearLayout
+        android:id="@+id/codeInputContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintTop_toBottomOf="@id/caption"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="30dp">
+
+        <!-- Input Fields for each digit -->
+        <EditText
+            android:id="@+id/codeInput1"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:hint="–"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#BDBDBD"
+            android:textSize="22sp"
+            android:backgroundTint="#FFD300"
+            android:gravity="center"
+            android:maxLength="1"
+            android:inputType="number"
+            android:importantForAccessibility="yes"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:layout_marginEnd="10dp" />
+
+        <EditText
+            android:id="@+id/codeInput2"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:hint="–"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#BDBDBD"
+            android:textSize="22sp"
+            android:backgroundTint="#FFD300"
+            android:gravity="center"
+            android:maxLength="1"
+            android:inputType="number"
+            android:importantForAccessibility="yes"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:layout_marginEnd="10dp" />
+
+        <EditText
+            android:id="@+id/codeInput3"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:hint="–"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#BDBDBD"
+            android:textSize="22sp"
+            android:backgroundTint="#FFD300"
+            android:gravity="center"
+            android:maxLength="1"
+            android:inputType="number"
+            android:importantForAccessibility="yes"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:layout_marginEnd="10dp" />
+
+        <EditText
+            android:id="@+id/codeInput4"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:hint="–"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#BDBDBD"
+            android:textSize="22sp"
+            android:backgroundTint="#FFD300"
+            android:gravity="center"
+            android:maxLength="1"
+            android:inputType="number"
+            android:importantForAccessibility="yes"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:layout_marginEnd="10dp" />
+
+        <EditText
+            android:id="@+id/codeInput5"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:hint="–"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#BDBDBD"
+            android:textSize="22sp"
+            android:backgroundTint="#FFD300"
+            android:gravity="center"
+            android:maxLength="1"
+            android:inputType="number"
+            android:importantForAccessibility="yes"
+            android:focusable="true"
+            android:focusableInTouchMode="true" />
+    </LinearLayout>
+
+    <!-- Verify Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnVerify"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Verify"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        app:layout_constraintTop_toBottomOf="@id/codeInputContainer"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:backgroundTint="#FFD300"
+        app:cornerRadius="30dp"
+        app:iconPadding="18dp"
+        app:icon="@android:drawable/ic_menu_send"
+        android:layout_marginTop="40dp"
+        android:layout_marginBottom="40dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

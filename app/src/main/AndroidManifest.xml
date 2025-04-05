@@ -23,6 +23,7 @@
         </activity>
         <activity android:name=".Activity.GetStartedActivity"/>
         <activity android:name=".Activity.PhoneNumberActivity"/>
+        <activity android:name=".Activity.VerificationPhoneNumberActivity"/>
 
 
 

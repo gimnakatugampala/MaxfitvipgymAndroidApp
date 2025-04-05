@@ -37,7 +37,7 @@ public class PhoneNumberActivity extends AppCompatActivity {
                 // Check if the phone number is valid (numeric and at least 10 digits)
                 if (isValidPhoneNumber(phoneNumber)) {
                     // Proceed to the next screen, e.g., phone number verification screen
-                    Intent intent = new Intent(PhoneNumberActivity.this, PhoneNumberActivity.class);
+                    Intent intent = new Intent(PhoneNumberActivity.this, VerificationPhoneNumberActivity.class);
                     intent.putExtra("phoneNumber", phoneNumber);  // Passing phone number to the next screen
                     startActivity(intent);
                     finish(); // Finish the current activity to prevent going back to this screen
