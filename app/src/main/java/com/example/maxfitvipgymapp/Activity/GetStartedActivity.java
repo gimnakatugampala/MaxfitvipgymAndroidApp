@@ -59,7 +59,7 @@ public class GetStartedActivity extends AppCompatActivity {
 
         // Button click listener to navigate to next activity (PhoneNumberActivity)
         btnGetStarted.setOnClickListener(v -> {
-            Intent intent = new Intent(GetStartedActivity.this, GetStartedActivity.class);
+            Intent intent = new Intent(GetStartedActivity.this, PhoneNumberActivity.class);
             startActivity(intent);
             finish(); // Close GetStartedActivity so it's not in the back stack
         });
