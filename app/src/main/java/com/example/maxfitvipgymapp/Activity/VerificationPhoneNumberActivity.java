@@ -1,5 +1,6 @@
 package com.example.maxfitvipgymapp.Activity;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
@@ -52,8 +53,13 @@ public class VerificationPhoneNumberActivity extends AppCompatActivity {
                 if (code.length() == 5) {
                     // Check if all characters are digits
                     if (isValidCode(code)) {
-                        // Proceed with the verification, e.g., send the code to the server for validation
+                        // Proceed with the verification
                         Toast.makeText(VerificationPhoneNumberActivity.this, "Code Verified", Toast.LENGTH_SHORT).show();
+
+                        // Navigate to the Membership Details Activity
+                        Intent intent = new Intent(VerificationPhoneNumberActivity.this, MembershipDetailsActivity.class);
+                        startActivity(intent);
+                        finish(); // Finish the current activity to prevent the user from going back
                     } else {
                         // If not all characters are digits, show an error
                         Toast.makeText(VerificationPhoneNumberActivity.this, "Please enter a valid numeric code", Toast.LENGTH_SHORT).show();
