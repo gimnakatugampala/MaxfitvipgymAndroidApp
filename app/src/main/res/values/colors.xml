@@ -3,4 +3,7 @@
     <color name="yellow">#FFD300</color>
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
+
+    <!-- Inactive color (for unselected items) -->
+    <color name="inactive_color">#BDBDBD</color>
 </resources>

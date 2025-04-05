@@ -1,34 +1,56 @@
 package com.example.maxfitvipgymapp.Activity;
 
-import android.content.Intent;
 import android.os.Bundle;
-
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
+import androidx.fragment.app.Fragment;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Fragments.HomeFragment;
+import com.example.maxfitvipgymapp.Fragments.InsightsFragment;
+import com.example.maxfitvipgymapp.Fragments.ProfileFragment;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import java.util.HashMap;
 
 public class MainActivity extends AppCompatActivity {
+
+    private BottomNavigationView bottomNavigationView;
+
+    // HashMap to map menu item IDs to fragments
+    private HashMap<Integer, Fragment> fragmentMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        // Optional: apply padding for system bars
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        bottomNavigationView = findViewById(R.id.bottomNavigationView);
 
-        // Redirect to GetStartedActivity
-        Intent intent = new Intent(MainActivity.this, GetStartedActivity.class);
-        startActivity(intent);
-        finish(); // Optional: finish MainActivity so it doesn't stay in back stack
+        // Initialize the fragment map
+        fragmentMap = new HashMap<>();
+        fragmentMap.put(R.id.nav_home, new HomeFragment());
+        fragmentMap.put(R.id.nav_insights, new InsightsFragment());
+        fragmentMap.put(R.id.nav_profile, new ProfileFragment());
+
+        // Set Home Fragment as default when the app opens
+        loadFragment(fragmentMap.get(R.id.nav_home));
+
+        // Set item selected listener for bottom navigation
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            // Use the map to get the selected fragment based on the item ID
+            Fragment selectedFragment = fragmentMap.get(item.getItemId());
+
+            // Return true if fragment is loaded
+            return selectedFragment != null && loadFragment(selectedFragment);
+        });
+    }
+
+    // Method to load a fragment into the container
+    private boolean loadFragment(Fragment fragment) {
+        if (fragment != null) {
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, fragment)
+                    .commit();
+            return true;
+        }
+        return false;
     }
 }
