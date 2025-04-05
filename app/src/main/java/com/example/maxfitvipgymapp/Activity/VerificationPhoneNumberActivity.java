@@ -4,7 +4,10 @@ import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.example.maxfitvipgymapp.R;
 import com.google.android.material.button.MaterialButton;
 
@@ -47,10 +50,17 @@ public class VerificationPhoneNumberActivity extends AppCompatActivity {
 
                 // Check if all digits have been entered
                 if (code.length() == 5) {
-                    // Proceed with the verification
-                    // For example, you can send the code to the server for validation
+                    // Check if all characters are digits
+                    if (isValidCode(code)) {
+                        // Proceed with the verification, e.g., send the code to the server for validation
+                        Toast.makeText(VerificationPhoneNumberActivity.this, "Code Verified", Toast.LENGTH_SHORT).show();
+                    } else {
+                        // If not all characters are digits, show an error
+                        Toast.makeText(VerificationPhoneNumberActivity.this, "Please enter a valid numeric code", Toast.LENGTH_SHORT).show();
+                    }
                 } else {
                     // Show an error message to the user if the code is not complete
+                    Toast.makeText(VerificationPhoneNumberActivity.this, "Please enter the full verification code", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -80,5 +90,11 @@ public class VerificationPhoneNumberActivity extends AppCompatActivity {
                 return false;
             }
         });
+    }
+
+    // Check if the verification code contains only digits
+    private boolean isValidCode(String code) {
+        // Check if the code contains only numeric digits
+        return code.matches("\\d{5}");  // Ensure the code is exactly 5 digits
     }
 }
