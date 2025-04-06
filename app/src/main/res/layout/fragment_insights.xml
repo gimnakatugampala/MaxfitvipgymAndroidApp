@@ -8,6 +8,7 @@
     android:background="#000000"
     tools:context=".Fragments.InsightsFragment">
 
+    <!-- Title -->
     <TextView
         android:id="@+id/insights_title"
         android:layout_width="wrap_content"
@@ -21,16 +22,28 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="24dp" />
 
+    <!-- Horizontal Date RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/date_recycler_view"
         android:layout_width="match_parent"
-        android:scrollbars="none"
         android:layout_height="wrap_content"
+        android:scrollbars="none"
         android:padding="8dp"
         android:clipToPadding="false"
-        app:layout_constraintTop_toBottomOf="@+id/insights_title"
+        app:layout_constraintTop_toBottomOf="@id/insights_title"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp" />
+        android:layout_marginTop="24dp"
+        tools:listitem="@layout/item_date" />
+
+    <!-- Health Grade Card -->
+    <include
+        android:id="@+id/health_grade_card"
+        layout="@layout/view_health_grade"
+        app:layout_constraintTop_toBottomOf="@id/date_recycler_view"
+
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
