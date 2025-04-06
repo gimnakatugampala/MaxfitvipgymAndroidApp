@@ -75,15 +75,18 @@
                     android:layout_width="80dp"
                     android:layout_height="60dp"
                     android:backgroundTint="#FFD300"
-                    android:text=""
-                    android:icon="@drawable/arrowright"
-                android:iconTint="#000000"
+
+                    app:icon="@android:drawable/ic_media_play"
+                    app:iconTint="#000000"
+
+                app:iconSize="32dp"
                 app:cornerRadius="30dp"
-                android:padding="0dp"
+
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:insetLeft="0dp"
                 android:insetRight="0dp"/>
+
 
 
 
