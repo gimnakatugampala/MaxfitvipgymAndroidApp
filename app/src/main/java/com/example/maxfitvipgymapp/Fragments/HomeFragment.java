@@ -92,35 +92,59 @@ public class HomeFragment extends Fragment {
 
 
     private void addWorkout(String day, String summary, String total, boolean isRestDay) {
-        LinearLayout card = new LinearLayout(getContext());
+        CardView card = new CardView(getContext());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 10, 0, 10);
         card.setLayoutParams(params);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(20, 20, 20, 20);
-        card.setBackgroundColor(Color.parseColor(isRestDay ? "#444444" : "#333333"));
+        card.setCardElevation(8);
+        card.setRadius(16);
+        card.setCardBackgroundColor(Color.parseColor(isRestDay ? "#2C2C2C" : "#333333"));
+
+        LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.HORIZONTAL);
+        layout.setPadding(24, 24, 24, 24);
+        layout.setGravity(Gravity.CENTER_VERTICAL);
+
+        // Optional: Add icon
+        ImageView icon = new ImageView(getContext());
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(80, 80);
+        icon.setLayoutParams(iconParams);
+        icon.setImageResource(isRestDay ? R.drawable.resting : R.drawable.workout); // Use your custom icons
+        icon.setColorFilter(Color.YELLOW);
+        layout.addView(icon);
+
+        // Text container
+        LinearLayout textLayout = new LinearLayout(getContext());
+        textLayout.setOrientation(LinearLayout.VERTICAL);
+        textLayout.setPadding(20, 0, 0, 0);
+        textLayout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView dayText = new TextView(getContext());
         dayText.setText(day);
-        dayText.setTextColor(isRestDay ? Color.LTGRAY : Color.YELLOW);
-        dayText.setTextSize(16);
-        dayText.setTypeface(null, Typeface.BOLD);
-        card.addView(dayText);
+        dayText.setTextColor(Color.WHITE);
+        dayText.setTextSize(20);  // Increased from 18 to 20
+        dayText.setTypeface(Typeface.DEFAULT_BOLD);
+        textLayout.addView(dayText);
 
         TextView summaryText = new TextView(getContext());
         summaryText.setText(summary);
-        summaryText.setTextColor(Color.WHITE);
-        card.addView(summaryText);
+        summaryText.setTextColor(Color.LTGRAY);
+        summaryText.setTextSize(17);  // Increased from 15 to 17
+        textLayout.addView(summaryText);
 
         if (total != null) {
             TextView totalText = new TextView(getContext());
             totalText.setText(total);
-            totalText.setTextColor(Color.LTGRAY);
-            card.addView(totalText);
+            totalText.setTextColor(Color.GRAY);
+            totalText.setTextSize(16);  // Increased from 14 to 16
+            textLayout.addView(totalText);
         }
 
+        layout.addView(textLayout);
+        card.addView(layout);
         workoutScheduleContainer.addView(card);
     }
+
 
     private void addWorkout(String day, String summary, String total) {
         addWorkout(day, summary, total, false);
