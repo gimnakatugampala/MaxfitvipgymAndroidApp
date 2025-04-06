@@ -170,5 +170,57 @@
                     android:textSize="14sp" />
             </LinearLayout>
         </GridLayout>
+
+        <!-- Training Log Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Training Log"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="A twelve-month review of your training"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- GitHub-style Grid -->
+        <GridLayout
+            android:id="@+id/training_log_grid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="32dp"
+            android:orientation="horizontal" >
+
+            <!-- Sample 364 squares: You can dynamically populate this in Java for real data -->
+            <!-- Here are a few to start -->
+            <View
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_margin="1dp"
+                android:background="#1f1f1f" />
+
+            <View
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_margin="1dp"
+                android:background="#FFD300" />
+
+            <View
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_margin="1dp"
+                android:background="#FFFFFF" />
+
+            <!-- Add more views like these for a complete grid -->
+        </GridLayout>
+
+
     </LinearLayout>
 </ScrollView>
