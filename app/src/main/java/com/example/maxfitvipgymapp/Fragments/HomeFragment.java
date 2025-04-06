@@ -1,6 +1,7 @@
 package com.example.maxfitvipgymapp.Fragments;
 
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -11,7 +12,10 @@ import android.view.ViewGroup;
 import android.widget.*;
 import androidx.cardview.widget.CardView;
 import androidx.fragment.app.Fragment;
+
+import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
+import com.google.android.material.button.MaterialButton;
 
 public class HomeFragment extends Fragment {
 
@@ -27,6 +31,16 @@ public class HomeFragment extends Fragment {
 
         metricsContainer = view.findViewById(R.id.metrics_container);
         workoutScheduleContainer = view.findViewById(R.id.workout_schedule_container);
+        MaterialButton startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
+
+        startWorkoutButton.setOnClickListener(v -> {
+            // You can show a Toast for now or start a new Fragment/Activity
+            Toast.makeText(getContext(), "Workout Started!", Toast.LENGTH_SHORT).show();
+
+            // TODO: Replace with actual logic to start the workout sequence.
+            // For example, navigate to WorkoutFragment or open a Workout dialog
+            showWorkoutStartDialog(); // Or startWorkoutSequence();
+        });
 
         // Add Health Metrics
         addMetric("Blood Pressure", "120/80", "mmHg", R.drawable.heartrate);
@@ -207,4 +221,21 @@ public class HomeFragment extends Fragment {
     private void addWorkout(String day, String summary, String total) {
         addWorkout(day, summary, total, false);
     }
+
+    private void showWorkoutStartDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle("Start Workout");
+        builder.setMessage("Are you ready to begin your workout?");
+        builder.setPositiveButton("Start", (dialog, which) -> {
+            // Launch workout activity or fragment
+            Toast.makeText(getContext(), "Workout started!", Toast.LENGTH_SHORT).show();
+
+            Intent intent = new Intent(getActivity(), WorkoutActivity.class);
+            startActivity(intent);
+            // Example: startActivity(new Intent(getContext(), WorkoutActivity.class));
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+
 }

@@ -25,6 +25,7 @@
         <activity android:name=".Activity.PhoneNumberActivity"/>
         <activity android:name=".Activity.VerificationPhoneNumberActivity"/>
         <activity android:name=".Activity.MembershipDetailsActivity"/>
+        <activity android:name=".Activity.WorkoutActivity"/>
 
 
 
