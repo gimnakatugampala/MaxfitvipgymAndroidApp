@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp"
+    android:layout_height="160dp"
+    android:layout_margin="8dp"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/stat_card_bg"
+    android:gravity="center"
+    android:layout_weight="1">
+
+    <ImageView
+        android:id="@+id/stat_icon"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:tint="#FFD300"
+        android:src="@drawable/ic_calories" />
+
+    <TextView
+        android:id="@+id/stat_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="620.98"
+        android:textColor="#FFD300"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginTop="12dp" />
+
+    <TextView
+        android:id="@+id/stat_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Calories"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:layout_marginTop="6dp" />
+</LinearLayout>

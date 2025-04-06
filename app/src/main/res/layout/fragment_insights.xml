@@ -46,4 +46,18 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp" />
 
+
+    <!-- Stats Grid (2 columns) -->
+    <androidx.gridlayout.widget.GridLayout
+        android:id="@+id/stats_grid"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:columnCount="2"
+        android:layout_marginTop="16dp"
+        android:padding="8dp"
+        app:layout_constraintTop_toBottomOf="@id/health_grade_card"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+
 </androidx.constraintlayout.widget.ConstraintLayout>
