@@ -39,17 +39,22 @@ public class HomeFragment extends Fragment {
         addWorkout("Wed", "Rest Day", null, true);
         addWorkout("Thu", "2 Workouts", "Total: 95 min");
         addWorkout("Fri", "2 Workouts", "Total: 90 min");
+        addWorkout("Sat", "2 Workouts", "Total: 90 min");
+        addWorkout("Sun", "Rest Day", null,true);
 
         return view;
     }
 
     private void addMetric(String title, String value, String unit, int iconRes) {
         CardView card = new CardView(getContext());
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(300, ViewGroup.LayoutParams.WRAP_CONTENT);
+        int cardSizeInDp = 160;
+        int cardSizeInPx = (int) (cardSizeInDp * getResources().getDisplayMetrics().density);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(cardSizeInPx, cardSizeInPx);
         cardParams.setMargins(20, 0, 20, 0);
         card.setLayoutParams(cardParams);
         card.setCardBackgroundColor(Color.parseColor("#212121"));
-        card.setRadius(10);
+        card.setRadius(20);
+        card.setCardElevation(10);
 
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -57,6 +62,8 @@ public class HomeFragment extends Fragment {
         layout.setGravity(Gravity.CENTER);
 
         ImageView icon = new ImageView(getContext());
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(80, 80);
+        icon.setLayoutParams(iconParams);
         icon.setImageResource(iconRes);
         icon.setColorFilter(Color.YELLOW);
         layout.addView(icon);
@@ -64,19 +71,25 @@ public class HomeFragment extends Fragment {
         TextView titleText = new TextView(getContext());
         titleText.setText(title);
         titleText.setTextColor(Color.WHITE);
-        titleText.setTextSize(14);
+        titleText.setTextSize(18);  // Increased from 14 to 18
+        titleText.setTypeface(Typeface.DEFAULT_BOLD);
+        titleText.setGravity(Gravity.CENTER);
         layout.addView(titleText);
 
         TextView valueText = new TextView(getContext());
         valueText.setText(value + " " + unit);
         valueText.setTextColor(Color.WHITE);
-        valueText.setTextSize(18);
+        valueText.setTextSize(22);  // Increased from 18 to 22
         valueText.setTypeface(null, Typeface.BOLD);
+        valueText.setGravity(Gravity.CENTER);
         layout.addView(valueText);
 
         card.addView(layout);
         metricsContainer.addView(card);
     }
+
+
+
 
     private void addWorkout(String day, String summary, String total, boolean isRestDay) {
         LinearLayout card = new LinearLayout(getContext());
