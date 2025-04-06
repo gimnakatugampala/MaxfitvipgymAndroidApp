@@ -18,6 +18,7 @@ import com.example.maxfitvipgymapp.R;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 
 import androidx.gridlayout.widget.GridLayout; // ✅ Correct import
@@ -32,6 +33,9 @@ public class InsightsFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_insights, container, false);
 
+
+
+
         // Date selector setup
         dateRecyclerView = view.findViewById(R.id.date_recycler_view);
         dateRecyclerView.setLayoutManager(
@@ -39,25 +43,45 @@ public class InsightsFragment extends Fragment {
         );
 
         List<DateModel> dateList = new ArrayList<>();
-        Calendar calendar = Calendar.getInstance();
-        calendar.add(Calendar.DAY_OF_MONTH, -1); // Move to yesterday
+        Calendar calendar = Calendar.getInstance(); // Start from today
 
         SimpleDateFormat dayFormat = new SimpleDateFormat("EEE");
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd");
 
-        for (int i = 0; i < 8; i++) {
+// Generate 7 days: today + 6 previous days
+        for (int i = 0; i < 7; i++) {
             String day = dayFormat.format(calendar.getTime());
             String date = dateFormat.format(calendar.getTime());
 
-            boolean isToday = i == 1;       // Today is index 1
-            boolean isDisabled = i == 0;    // Yesterday is disabled
+            boolean isSelected = (i == 0); // First item (today) will be selected
+            boolean isDisabled = false;
 
-            dateList.add(new DateModel(day, date, isToday, isDisabled));
-            calendar.add(Calendar.DAY_OF_MONTH, 1);
+            dateList.add(new DateModel(day, date, isSelected, isDisabled));
+
+            calendar.add(Calendar.DAY_OF_MONTH, -1); // Move to previous day
         }
+
+// Reverse the list so today appears last (rightmost)
+        Collections.reverse(dateList);
+
+// Update selectedIndex after reversing
+        int selectedIndex = dateList.size() - 1;
+
+        // Scroll to selected index (today) after adapter is set
+        dateRecyclerView.scrollToPosition(selectedIndex);
+
 
         dateAdapter = new DateAdapter(dateList, position -> dateAdapter.setSelected(position));
         dateRecyclerView.setAdapter(dateAdapter);
+        dateAdapter.setSelected(selectedIndex);
+        dateRecyclerView.scrollToPosition(selectedIndex); // 🔥 Scroll to today
+
+
+// This makes sure only one gets selected
+        if (selectedIndex != -1) {
+            dateAdapter.setSelected(selectedIndex);
+        }
+
 
         // Stats Grid setup
         GridLayout statsGrid = view.findViewById(R.id.stats_grid);

@@ -62,6 +62,7 @@ public class DateAdapter extends RecyclerView.Adapter<DateAdapter.ViewHolder> {
             holder.cardView.setCardBackgroundColor(Color.parseColor("#1A1A1A"));
             holder.dayText.setTextColor(Color.parseColor("#555555"));
             holder.dateText.setTextColor(Color.parseColor("#555555"));
+            holder.dateText.setBackground(null); // Reset background
         } else if (model.isSelected()) {
             holder.cardView.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFD300")));
             holder.dateText.setBackgroundResource(R.drawable.day_selected_background);
@@ -69,8 +70,10 @@ public class DateAdapter extends RecyclerView.Adapter<DateAdapter.ViewHolder> {
             holder.dateText.setTextColor(Color.BLACK);
         } else {
             holder.cardView.setCardBackgroundColor(Color.parseColor("#1A1A1A")); // Default style
+            holder.cardView.setBackgroundTintList(null); // Reset tint
             holder.dayText.setTextColor(Color.WHITE);
             holder.dateText.setTextColor(Color.WHITE);
+            holder.dateText.setBackground(null); // Reset background
         }
     }
 
@@ -81,10 +84,13 @@ public class DateAdapter extends RecyclerView.Adapter<DateAdapter.ViewHolder> {
     }
 
     public void setSelected(int position) {
+        if (dateList.get(position).isDisabled()) return; // 🔒 skip if disabled
+
         for (int i = 0; i < dateList.size(); i++) {
             dateList.get(i).setSelected(i == position);
         }
         notifyDataSetChanged();
     }
+
 
 }

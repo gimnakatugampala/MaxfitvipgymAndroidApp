@@ -26,7 +26,7 @@ public class DateModel {
     }
 
     public void setSelected(boolean selected) {
-        isSelected = selected;
+        this.isSelected = selected;
     }
 
     public boolean isDisabled() {
@@ -34,6 +34,6 @@ public class DateModel {
     }
 
     public void setDisabled(boolean disabled) {
-        isDisabled = disabled;
+        this.isDisabled = disabled;
     }
 }
