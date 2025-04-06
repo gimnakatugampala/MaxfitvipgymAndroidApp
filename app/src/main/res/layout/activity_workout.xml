@@ -30,15 +30,18 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="20dp" />
 
-    <Button
+    <ImageButton
         android:id="@+id/playPauseButton"
         android:layout_width="70dp"
         android:layout_height="70dp"
-        android:backgroundTint="#FFD300"
-        android:text="⏯"
         android:layout_below="@id/timerText"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="30dp" />
+        android:layout_marginTop="30dp"
+        android:background="@drawable/workout_circle_yellow"
+        android:src="@drawable/playbutton"
+        android:scaleType="centerInside"
+        android:contentDescription="Play/Pause"
+        android:padding="15dp" />
 
     <TextView
         android:id="@+id/setInfoText"

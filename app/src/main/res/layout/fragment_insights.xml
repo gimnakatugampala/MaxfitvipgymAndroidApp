@@ -18,7 +18,7 @@
             android:id="@+id/insights_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Insights"
+            android:text=""
             android:textSize="24sp"
             android:textColor="#FFD300"
             android:textStyle="bold"

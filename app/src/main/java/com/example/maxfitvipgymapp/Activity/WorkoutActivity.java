@@ -1,30 +1,29 @@
 package com.example.maxfitvipgymapp.Activity;
 
 import android.app.AlertDialog;
+import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.os.CountDownTimer;
 import android.os.Handler;
-import android.widget.Button;
+import android.view.View;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.example.maxfitvipgymapp.Model.Workout;
+import com.bumptech.glide.Glide;
 import com.example.maxfitvipgymapp.R;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import com.bumptech.glide.Glide;
-
 
 public class WorkoutActivity extends AppCompatActivity {
 
     private TextView workoutTitle, timerText, setInfoText;
-    private Button playPauseButton;
+    private ImageButton playPauseButton;
     private ImageView backgroundImage;
+
     private int currentWorkoutIndex = 0;
     private int timeLeft; // in seconds
     private boolean isRunning = true;
@@ -33,7 +32,8 @@ public class WorkoutActivity extends AppCompatActivity {
     private Handler timerHandler = new Handler();
     private Runnable timerRunnable;
 
-    // Sample workouts
+    private MediaPlayer mediaPlayer;
+
     private Workout[] workouts = {
             new Workout("Weight Lifting", 10, "duration", 0, 0, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
             new Workout("HIIT Training", 10, "set", 3, 8, "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load"),
@@ -55,8 +55,14 @@ public class WorkoutActivity extends AppCompatActivity {
 
         playPauseButton.setOnClickListener(v -> {
             isRunning = !isRunning;
-            if (isRunning) startTimer();
-            else stopTimer();
+
+            if (isRunning) {
+                startTimer();
+                playPauseButton.setImageResource(R.drawable.pause);
+            } else {
+                stopTimer();
+                playPauseButton.setImageResource(R.drawable.playbutton);
+            }
         });
     }
 
@@ -64,15 +70,26 @@ public class WorkoutActivity extends AppCompatActivity {
         Workout workout = workouts[currentWorkoutIndex];
         workoutTitle.setText(workout.title);
         timeLeft = workout.time;
+        currentSet = 1;
+        completedSets.clear();
 
-        Glide.with(this).load(workout.imageUrl).into(backgroundImage); // Use Glide for image
-
+        Glide.with(this).load(workout.imageUrl).into(backgroundImage);
         updateTimerText();
 
+        if (workout.type.equals("set")) {
+            setInfoText.setVisibility(View.VISIBLE);
+            updateSetInfo();
+        } else {
+            setInfoText.setVisibility(View.GONE);
+        }
+
+        playPauseButton.setImageResource(R.drawable.pause);
         startTimer();
     }
 
     private void startTimer() {
+        stopTimer();
+
         timerRunnable = new Runnable() {
             @Override
             public void run() {
@@ -86,10 +103,12 @@ public class WorkoutActivity extends AppCompatActivity {
             }
         };
         timerHandler.postDelayed(timerRunnable, 1000);
+        isRunning = true;
     }
 
     private void stopTimer() {
         timerHandler.removeCallbacks(timerRunnable);
+        isRunning = false;
     }
 
     private void updateTimerText() {
@@ -100,6 +119,8 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void handleTimerCompletion() {
         Workout current = workouts[currentWorkoutIndex];
+
+        playSoundEffect();
 
         if (current.type.equals("set") && currentSet < current.sets) {
             completedSets.add(currentSet);
@@ -115,8 +136,6 @@ public class WorkoutActivity extends AppCompatActivity {
     private void moveToNextWorkout() {
         currentWorkoutIndex++;
         if (currentWorkoutIndex < workouts.length) {
-            currentSet = 1;
-            completedSets.clear();
             setupWorkout();
         } else {
             new AlertDialog.Builder(this)
@@ -137,6 +156,22 @@ public class WorkoutActivity extends AppCompatActivity {
             else builder.append(i).append(" ");
         }
         setInfoText.setText(builder.toString().trim());
+    }
+
+    private void playSoundEffect() {
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+        }
+        mediaPlayer = MediaPlayer.create(this, R.raw.ding);
+        mediaPlayer.start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+        }
+        super.onDestroy();
     }
 
     static class Workout {
