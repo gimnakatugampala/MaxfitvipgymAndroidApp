@@ -4,9 +4,14 @@ import android.app.AlertDialog;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.TranslateAnimation;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,6 +22,8 @@ import com.example.maxfitvipgymapp.R;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
+import static com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade;
 
 public class WorkoutActivity extends AppCompatActivity {
 
@@ -35,9 +42,9 @@ public class WorkoutActivity extends AppCompatActivity {
     private MediaPlayer mediaPlayer;
 
     private Workout[] workouts = {
-            new Workout("Weight Lifting", 10, "duration", 0, 0, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
-            new Workout("HIIT Training", 10, "set", 3, 8, "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load"),
-            new Workout("Cardio Blast", 15, "duration", 0, 0, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg")
+            new Workout("WEIGHT LIFTING", 10, "duration", 0, 0, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
+            new Workout("HIT TRAINING", 10, "set", 3, 8, "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load"),
+            new Workout("CARDIO BLAST", 15, "duration", 0, 0, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg")
     };
 
     @Override
@@ -51,10 +58,34 @@ public class WorkoutActivity extends AppCompatActivity {
         backgroundImage = findViewById(R.id.backgroundImage);
         setInfoText = findViewById(R.id.setInfoText);
 
+        ScrollView scrollContainer = findViewById(R.id.scrollContainer);
+
+        // Listen for scroll events to detect upward scroll
+        scrollContainer.setOnTouchListener(new View.OnTouchListener() {
+            private float initialY;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialY = event.getY();
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        float deltaY = initialY - event.getY();
+                        if (deltaY > 0) {  // Scrolling up
+                            moveToNextWorkout();
+                        }
+                        break;
+                }
+                return false;
+            }
+        });
+
         setupWorkout();
 
         playPauseButton.setOnClickListener(v -> {
             isRunning = !isRunning;
+            animatePlayPauseButton();
 
             if (isRunning) {
                 startTimer();
@@ -73,7 +104,11 @@ public class WorkoutActivity extends AppCompatActivity {
         currentSet = 1;
         completedSets.clear();
 
-        Glide.with(this).load(workout.imageUrl).into(backgroundImage);
+        Glide.with(this)
+                .load(workout.imageUrl)
+                .transition(withCrossFade())
+                .into(backgroundImage);
+
         updateTimerText();
 
         if (workout.type.equals("set")) {
@@ -83,8 +118,19 @@ public class WorkoutActivity extends AppCompatActivity {
             setInfoText.setVisibility(View.GONE);
         }
 
+        // Reset scroll position to top
+        ScrollView scrollContainer = findViewById(R.id.scrollContainer);
+        scrollContainer.post(() -> scrollContainer.fullScroll(View.FOCUS_UP));
+
         playPauseButton.setImageResource(R.drawable.pause);
         startTimer();
+    }
+
+    private void animatePlayPauseButton() {
+        playPauseButton.animate()
+                .scaleX(1.1f).scaleY(1.1f)
+                .setDuration(100)
+                .withEndAction(() -> playPauseButton.animate().scaleX(1f).scaleY(1f).setDuration(100));
     }
 
     private void startTimer() {
@@ -136,7 +182,7 @@ public class WorkoutActivity extends AppCompatActivity {
     private void moveToNextWorkout() {
         currentWorkoutIndex++;
         if (currentWorkoutIndex < workouts.length) {
-            setupWorkout();
+            animateWorkoutTransition(() -> setupWorkout());
         } else {
             new AlertDialog.Builder(this)
                     .setTitle("Good Job!")
@@ -164,6 +210,44 @@ public class WorkoutActivity extends AppCompatActivity {
         }
         mediaPlayer = MediaPlayer.create(this, R.raw.ding);
         mediaPlayer.start();
+    }
+
+    private void animateWorkoutTransition(final Runnable updateContent) {
+        final LinearLayout centerBlock = findViewById(R.id.centerBlock);
+        final ScrollView scrollContainer = findViewById(R.id.scrollContainer);
+
+        // Slide out to top (for existing content)
+        TranslateAnimation slideOut = new TranslateAnimation(0, 0, 0, -centerBlock.getHeight());
+        slideOut.setDuration(300);
+        slideOut.setFillAfter(false);
+
+        // Slide in from bottom (for new content)
+        TranslateAnimation slideIn = new TranslateAnimation(0, 0, centerBlock.getHeight(), 0);
+        slideIn.setDuration(300);
+        slideIn.setFillAfter(true);
+
+        slideOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                // Update workout content after slide out completes
+                updateContent.run();
+
+                // Scroll to the bottom before sliding in new content
+                scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, scrollContainer.getHeight()));
+
+                // Start slide-in animation for the new workout content
+                centerBlock.startAnimation(slideIn);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+
+        // Start slide-out animation for the current workout
+        centerBlock.startAnimation(slideOut);
     }
 
     @Override

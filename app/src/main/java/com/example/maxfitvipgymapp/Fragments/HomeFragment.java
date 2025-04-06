@@ -228,7 +228,7 @@ public class HomeFragment extends Fragment {
         builder.setMessage("Are you ready to begin your workout?");
         builder.setPositiveButton("Start", (dialog, which) -> {
             // Launch workout activity or fragment
-            Toast.makeText(getContext(), "Workout started!", Toast.LENGTH_SHORT).show();
+//            Toast.makeText(getContext(), "Workout started!", Toast.LENGTH_SHORT).show();
 
             Intent intent = new Intent(getActivity(), WorkoutActivity.class);
             startActivity(intent);
