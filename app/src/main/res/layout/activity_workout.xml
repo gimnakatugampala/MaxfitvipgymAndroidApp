@@ -1,26 +1,53 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:background="#000000"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/backgroundImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop" />
+
+    <TextView
+        android:id="@+id/workoutTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Workout Title"
+        android:textColor="#fff"
+        android:textSize="24sp"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="60dp" />
 
     <TextView
         android:id="@+id/timerText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="00"
-        android:textColor="#FFFFFF"
+        android:text="00:00"
+        android:textColor="#fff"
         android:textSize="48sp"
-        android:layout_centerInParent="true" />
+        android:layout_below="@id/workoutTitle"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/startWorkoutButton"
-        android:layout_width="80dp"
-        android:layout_height="60dp"
+    <Button
+        android:id="@+id/playPauseButton"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:backgroundTint="#FFD300"
+        android:text="⏯"
         android:layout_below="@id/timerText"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="32dp"
-        android:backgroundTint="#FFD300"
-        android:icon="@android:drawable/ic_media_play"
+        android:layout_marginTop="30dp" />
 
-         />
+    <TextView
+        android:id="@+id/setInfoText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#fff"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="100dp"
+        android:text="Set Info" />
+
 </RelativeLayout>
