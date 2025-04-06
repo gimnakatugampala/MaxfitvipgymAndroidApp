@@ -9,6 +9,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.maxfitvipgymapp.Model.DateModel;
 import com.example.maxfitvipgymapp.R;
+import android.content.res.ColorStateList;
+
 
 import java.util.List;
 
@@ -52,17 +54,26 @@ public class DateAdapter extends RecyclerView.Adapter<DateAdapter.ViewHolder> {
     @Override
     public void onBindViewHolder(ViewHolder holder, int position) {
         DateModel model = dateList.get(position);
-        holder.dayText.setText(model.day);
-        holder.dateText.setText(model.date);
 
-        if (model.isSelected) {
-            holder.cardView.setCardBackgroundColor(Color.parseColor("#FFD300"));
+        holder.dayText.setText(model.getDay());
+        holder.dateText.setText(model.getDate());
+
+        if (model.isDisabled()) {
+            holder.cardView.setCardBackgroundColor(Color.parseColor("#1A1A1A"));
+            holder.dayText.setTextColor(Color.parseColor("#555555"));
+            holder.dateText.setTextColor(Color.parseColor("#555555"));
+        } else if (model.isSelected()) {
+            holder.cardView.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFD300")));
+            holder.dateText.setBackgroundResource(R.drawable.day_selected_background);
+            holder.dayText.setTextColor(Color.WHITE);
             holder.dateText.setTextColor(Color.BLACK);
         } else {
-            holder.cardView.setCardBackgroundColor(Color.parseColor("#1A1A1A"));
+            holder.cardView.setCardBackgroundColor(Color.parseColor("#1A1A1A")); // Default style
+            holder.dayText.setTextColor(Color.WHITE);
             holder.dateText.setTextColor(Color.WHITE);
         }
     }
+
 
     @Override
     public int getItemCount() {
@@ -71,8 +82,9 @@ public class DateAdapter extends RecyclerView.Adapter<DateAdapter.ViewHolder> {
 
     public void setSelected(int position) {
         for (int i = 0; i < dateList.size(); i++) {
-            dateList.get(i).isSelected = i == position;
+            dateList.get(i).setSelected(i == position);
         }
         notifyDataSetChanged();
     }
+
 }
