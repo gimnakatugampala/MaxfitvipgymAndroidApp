@@ -1,5 +1,6 @@
 package com.example.maxfitvipgymapp.Fragments;
 
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -105,15 +106,13 @@ public class HomeFragment extends Fragment {
         layout.setPadding(24, 24, 24, 24);
         layout.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Optional: Add icon
         ImageView icon = new ImageView(getContext());
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(80, 80);
         icon.setLayoutParams(iconParams);
-        icon.setImageResource(isRestDay ? R.drawable.resting : R.drawable.workout); // Use your custom icons
+        icon.setImageResource(isRestDay ? R.drawable.resting : R.drawable.workout);
         icon.setColorFilter(Color.YELLOW);
         layout.addView(icon);
 
-        // Text container
         LinearLayout textLayout = new LinearLayout(getContext());
         textLayout.setOrientation(LinearLayout.VERTICAL);
         textLayout.setPadding(20, 0, 0, 0);
@@ -122,28 +121,87 @@ public class HomeFragment extends Fragment {
         TextView dayText = new TextView(getContext());
         dayText.setText(day);
         dayText.setTextColor(Color.WHITE);
-        dayText.setTextSize(20);  // Increased from 18 to 20
+        dayText.setTextSize(20);
         dayText.setTypeface(Typeface.DEFAULT_BOLD);
         textLayout.addView(dayText);
 
         TextView summaryText = new TextView(getContext());
         summaryText.setText(summary);
         summaryText.setTextColor(Color.LTGRAY);
-        summaryText.setTextSize(17);  // Increased from 15 to 17
+        summaryText.setTextSize(17);
         textLayout.addView(summaryText);
 
         if (total != null) {
             TextView totalText = new TextView(getContext());
             totalText.setText(total);
             totalText.setTextColor(Color.GRAY);
-            totalText.setTextSize(16);  // Increased from 14 to 16
+            totalText.setTextSize(16);
             textLayout.addView(totalText);
         }
 
         layout.addView(textLayout);
         card.addView(layout);
         workoutScheduleContainer.addView(card);
+
+        // Make it clickable
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setOnClickListener(v -> showWorkoutDialog(day, isRestDay));
     }
+
+    private void showWorkoutDialog(String day, boolean isRestDay) {
+        if (isRestDay) {
+            Toast.makeText(getContext(), day + " is a rest day. Take it easy and recharge!", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        LayoutInflater inflater = LayoutInflater.from(getContext());
+        View dialogView = inflater.inflate(R.layout.dialog_workout_details, null);
+
+        TextView title = dialogView.findViewById(R.id.dialog_title);
+        title.setText(day + " - Workouts");
+
+        LinearLayout contentContainer = dialogView.findViewById(R.id.dialog_content_container);
+
+        String[] workouts = new String[]{
+                "Warm-up (10 min)", "Cardio (30 min)", "Strength Training (25 min)", "Cool-down (10 min)"
+        };
+
+        int[] icons = new int[]{
+                R.drawable.warmup, R.drawable.heartrate, R.drawable.strength, R.drawable.cooldown
+        };
+
+        for (int i = 0; i < workouts.length; i++) {
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setPadding(0, 16, 0, 16);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+
+            ImageView icon = new ImageView(getContext());
+            LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(60, 60);
+            iconParams.setMarginEnd(20);
+            icon.setLayoutParams(iconParams);
+            icon.setImageResource(icons[i]);
+            icon.setColorFilter(Color.YELLOW);
+
+            TextView workoutText = new TextView(getContext());
+            workoutText.setText(workouts[i]);
+            workoutText.setTextColor(Color.WHITE);
+            workoutText.setTextSize(17);
+
+            row.addView(icon);
+            row.addView(workoutText);
+            contentContainer.addView(row);
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext(), R.style.CustomDialogTheme);
+        builder.setView(dialogView);
+        builder.setPositiveButton("Close", (dialog, which) -> dialog.dismiss());
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
 
 
     private void addWorkout(String day, String summary, String total) {

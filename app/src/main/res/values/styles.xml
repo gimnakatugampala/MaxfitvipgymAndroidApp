@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Your app's base theme -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Customize your theme here -->
+        <item name="colorPrimary">#6200EE</item>
+        <item name="colorPrimaryVariant">#3700B3</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#03DAC5</item>
+    </style>
+
+    <!-- ✅ Custom Dialog Theme -->
+    <style name="CustomDialogTheme" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
+        <item name="android:background">#212121</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:windowMinWidthMajor">90%</item>
+        <item name="android:windowMinWidthMinor">90%</item>
+    </style>
+
+</resources>
