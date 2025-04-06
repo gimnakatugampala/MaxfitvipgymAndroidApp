@@ -1,23 +1,174 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
-    tools:context=".Fragments.ProfileFragment">
+    android:background="#000000">
 
-    <!-- Profile Content -->
-    <TextView
-        android:id="@+id/profile_title"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Profile Screen"
-        android:textSize="24sp"
-        android:textColor="#FFD300"
-        android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="100dp" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="16dp">
+
+        <!-- Profile Picture -->
+        <ImageView
+            android:id="@+id/profile_image"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_marginBottom="12dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/profile_placeholder"
+            android:background="@drawable/circle_background"
+            android:clipToOutline="true" />
+
+        <!-- Username -->
+        <TextView
+            android:id="@+id/user_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Jonny"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <!-- Location -->
+        <TextView
+            android:id="@+id/user_location"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📍 Los Angeles, CA"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <!-- Join Date -->
+        <TextView
+            android:id="@+id/join_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🕒 Joined 18th Oct"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Stats Grid -->
+        <GridLayout
+            android:id="@+id/profile_stats_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2"
+            android:rowCount="2"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp">
+
+            <!-- Session Box -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="#111111"
+                android:padding="16dp"
+                android:layout_margin="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="78"
+                    android:textColor="#FFD300"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Total Sessions"
+                    android:textColor="#BBBBBB"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- Weeks Box -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="#111111"
+                android:padding="16dp"
+                android:layout_margin="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="16"
+                    android:textColor="#FFD300"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Total Weeks"
+                    android:textColor="#BBBBBB"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- Cycles Box -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="#111111"
+                android:padding="16dp"
+                android:layout_margin="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="5"
+                    android:textColor="#FFD300"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Total Cycles"
+                    android:textColor="#BBBBBB"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- Unique Exercises Box -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="#111111"
+                android:padding="16dp"
+                android:layout_margin="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="281"
+                    android:textColor="#FFD300"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Unique Exercises"
+                    android:textColor="#BBBBBB"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </GridLayout>
+    </LinearLayout>
+</ScrollView>
