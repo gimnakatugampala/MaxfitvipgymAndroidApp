@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.Animation;
@@ -41,6 +42,12 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private MediaPlayer mediaPlayer;
 
+    private boolean isTransitioning = false;
+
+    private GestureDetector gestureDetector;
+
+
+
     private Workout[] workouts = {
             new Workout("WEIGHT LIFTING", 10, "duration", 0, 0, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
             new Workout("HIT TRAINING", 10, "set", 3, 8, "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load"),
@@ -58,28 +65,32 @@ public class WorkoutActivity extends AppCompatActivity {
         backgroundImage = findViewById(R.id.backgroundImage);
         setInfoText = findViewById(R.id.setInfoText);
 
-        ScrollView scrollContainer = findViewById(R.id.scrollContainer);
+
 
         // Listen for scroll events to detect upward scroll
-        scrollContainer.setOnTouchListener(new View.OnTouchListener() {
-            private float initialY;
-
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        initialY = event.getY();
-                        break;
-                    case MotionEvent.ACTION_MOVE:
-                        float deltaY = initialY - event.getY();
-                        if (deltaY > 0) {  // Scrolling up
-                            moveToNextWorkout();
-                        }
-                        break;
+            public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+                if (distanceY > 50 && !isTransitioning) {
+                    moveToNextWorkout();
+                    return true;
                 }
                 return false;
             }
         });
+
+
+
+        ScrollView scrollContainer = findViewById(R.id.scrollContainer);
+        scrollContainer.getViewTreeObserver().addOnScrollChangedListener(() -> {
+            int scrollY = scrollContainer.getScrollY();
+            if (scrollY > 300 && !isTransitioning) { // arbitrary threshold
+                moveToNextWorkout();
+            }
+        });
+
+
+
 
         setupWorkout();
 
@@ -180,17 +191,25 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void moveToNextWorkout() {
+        if (isTransitioning) return;
+
+        isTransitioning = true;
         currentWorkoutIndex++;
         if (currentWorkoutIndex < workouts.length) {
-            animateWorkoutTransition(() -> setupWorkout());
+            animateWorkoutTransition(() -> {
+                setupWorkout();
+                isTransitioning = false;
+            });
         } else {
             new AlertDialog.Builder(this)
                     .setTitle("Good Job!")
                     .setMessage("You have completed all workouts.")
                     .setPositiveButton("OK", (dialog, which) -> finish())
                     .show();
+            isTransitioning = false;
         }
     }
+
 
     private void updateSetInfo() {
         Workout current = workouts[currentWorkoutIndex];
@@ -257,6 +276,8 @@ public class WorkoutActivity extends AppCompatActivity {
         }
         super.onDestroy();
     }
+
+
 
     static class Workout {
         String title;
