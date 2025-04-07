@@ -18,8 +18,10 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
+import com.example.maxfitvipgymapp.Adapter.YouTubeAdapter;
 import com.example.maxfitvipgymapp.R;
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer;
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener;
@@ -54,10 +56,14 @@ public class WorkoutActivity extends AppCompatActivity {
     private boolean isTransitioning = false;
     private GestureDetector gestureDetector;
 
+    // Updated to include multiple YouTube video IDs
     private Workout[] workouts = {
-            new Workout("WEIGHT LIFTING", true, 600, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
-            new Workout("HIT TRAINING", false, 60, Arrays.asList(8, 8, 8), "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg"),
-            new Workout("CARDIO BLAST", true, 900, null, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg")
+            new Workout("WEIGHT LIFTING", true, 600, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
+                    Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")), // Multiple YouTube video IDs
+            new Workout("HIT TRAINING", false, 60, Arrays.asList(8, 8, 8), "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
+                    Arrays.asList("9bZkp7q19f0")), // Multiple YouTube video IDs
+            new Workout("CARDIO BLAST", true, 900, null, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
+                    Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ")) // Multiple YouTube video IDs
     };
 
     @Override
@@ -65,6 +71,7 @@ public class WorkoutActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
 
+        // Initialize the views
         workoutTitle = findViewById(R.id.workoutTitle);
         timerText = findViewById(R.id.timerText);
         playPauseButton = findViewById(R.id.playPauseButton);
@@ -73,13 +80,14 @@ public class WorkoutActivity extends AppCompatActivity {
         showVideoButton = findViewById(R.id.showVideoButton);
 
         youtubeModal = findViewById(R.id.youtubeModal);
-        youtubePlayerView = findViewById(R.id.youtubePlayerView);
+        youtubePlayerView = findViewById(R.id.youtubePlayerView); // Initialize after setContentView
         closeYoutubeButton = findViewById(R.id.closeYoutubeButton);
 
-        getLifecycle().addObserver(youtubePlayerView); // Required for proper lifecycle
+        // Add observer for lifecycle
+        getLifecycle().addObserver(youtubePlayerView);
 
-        // Load sample video
-        showVideoButton.setOnClickListener(v -> showYouTubeVideo("dQw4w9WgXcQ")); // replace with actual ID
+        // Load sample video (using the first video ID of the list)
+        showVideoButton.setOnClickListener(v -> showYouTubeVideo(workouts[currentWorkoutIndex].getYoutubeUrls().get(0))); // using the first video ID in the list
 
         closeYoutubeButton.setOnClickListener(v -> youtubeModal.setVisibility(View.GONE));
 
@@ -119,19 +127,19 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void setupWorkout() {
         Workout workout = workouts[currentWorkoutIndex];
-        workoutTitle.setText(workout.title);
-        timeLeft = workout.time;
+        workoutTitle.setText(workout.getTitle());
+        timeLeft = workout.getTime();
         currentSet = 1;
         completedSets.clear();
 
         Glide.with(this)
-                .load(workout.imageUrl)
+                .load(workout.getImageUrl())
                 .transition(withCrossFade())
                 .into(backgroundImage);
 
         updateTimerText();
 
-        if (!workout.isDurationBased && workout.repsPerSet != null) {
+        if (!workout.isDurationBased() && workout.getRepsPerSet() != null) {
             setInfoText.setVisibility(View.VISIBLE);
             updateSetInfo();
         } else {
@@ -187,10 +195,10 @@ public class WorkoutActivity extends AppCompatActivity {
 
         playSoundEffect();
 
-        if (!current.isDurationBased && currentSet < current.repsPerSet.size()) {
+        if (!current.isDurationBased() && currentSet < current.getRepsPerSet().size()) {
             completedSets.add(currentSet);
             currentSet++;
-            timeLeft = current.time;
+            timeLeft = current.getTime();
             updateSetInfo();
             startTimer();
         } else {
@@ -220,14 +228,14 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void updateSetInfo() {
         Workout current = workouts[currentWorkoutIndex];
-        if (current.repsPerSet == null) return;
+        if (current.getRepsPerSet() == null) return;
 
         StringBuilder builder = new StringBuilder();
-        for (int i = 1; i <= current.repsPerSet.size(); i++) {
+        for (int i = 1; i <= current.getRepsPerSet().size(); i++) {
             if (completedSets.contains(i)) {
                 builder.append("✅ ");
             } else {
-                builder.append("Set ").append(i).append(": ").append(current.repsPerSet.get(i - 1)).append(" reps\n");
+                builder.append("Set ").append(i).append(": ").append(current.getRepsPerSet().get(i - 1)).append(" reps\n");
             }
         }
         setInfoText.setText(builder.toString().trim());
@@ -269,15 +277,58 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void showYouTubeVideo(String videoId) {
-        youtubeModal.setVisibility(View.VISIBLE);
+        youtubeModal.setVisibility(View.VISIBLE);  // Show the full-screen YouTube modal (popup)
 
-        youtubePlayerView.addYouTubePlayerListener(new AbstractYouTubePlayerListener() {
-            @Override
-            public void onReady(YouTubePlayer youTubePlayer) {
-                youTubePlayer.cueVideo(videoId, 0);
-            }
-        });
+        List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
+
+        // Set up ViewPager2 with an adapter
+        YouTubeAdapter adapter = new YouTubeAdapter(videoList);
+        ViewPager2 viewPager = findViewById(R.id.viewPager);
+        viewPager.setAdapter(adapter);
+
+        // Close YouTube modal on click
+        closeYoutubeButton.setOnClickListener(v -> youtubeModal.setVisibility(View.GONE));  // Hide the modal
     }
+
+
+
+
+    // Load the next video from the list
+    private void loadNextVideo() {
+        List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
+        String currentVideoId = getCurrentlyPlayingVideoId();  // Assuming this method can fetch the current video ID being played
+
+        int currentVideoIndex = videoList.indexOf(currentVideoId);
+        if (currentVideoIndex < videoList.size() - 1) {
+            String nextVideoId = videoList.get(currentVideoIndex + 1);
+            showYouTubeVideo(nextVideoId);  // Show next video
+        } else {
+            youtubeModal.setVisibility(View.GONE);  // No next video, close the modal
+        }
+    }
+
+    // Load the previous video from the list
+    private void loadPreviousVideo() {
+        List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
+        String currentVideoId = getCurrentlyPlayingVideoId();  // Assuming this method can fetch the current video ID being played
+
+        int currentVideoIndex = videoList.indexOf(currentVideoId);
+        if (currentVideoIndex > 0) {
+            String prevVideoId = videoList.get(currentVideoIndex - 1);
+            showYouTubeVideo(prevVideoId);  // Show previous video
+        } else {
+            youtubeModal.setVisibility(View.GONE);  // No previous video, close the modal
+        }
+    }
+
+    // Placeholder for method to fetch the currently playing video ID
+    private String getCurrentlyPlayingVideoId() {
+        // This could be handled in different ways depending on how the YouTube player is set up.
+        // For simplicity, assuming it can return the video ID for the current playing video.
+        return workouts[currentWorkoutIndex].getYoutubeUrls().get(0);  // Default to first video for now
+    }
+
+
 
     @Override
     protected void onDestroy() {
@@ -288,18 +339,44 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     static class Workout {
-        String title;
-        boolean isDurationBased;
-        int time;
-        List<Integer> repsPerSet;
-        String imageUrl;
+        private String title;
+        private boolean isDurationBased;
+        private int time;
+        private List<Integer> repsPerSet;
+        private String imageUrl;
+        private List<String> youtubeUrls;  // New field for multiple YouTube video IDs
 
-        public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet, String imageUrl) {
+        public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet, String imageUrl, List<String> youtubeUrls) {
             this.title = title;
             this.isDurationBased = isDurationBased;
             this.time = time;
             this.repsPerSet = repsPerSet;
             this.imageUrl = imageUrl;
+            this.youtubeUrls = youtubeUrls;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public boolean isDurationBased() {
+            return isDurationBased;
+        }
+
+        public int getTime() {
+            return time;
+        }
+
+        public List<Integer> getRepsPerSet() {
+            return repsPerSet;
+        }
+
+        public String getImageUrl() {
+            return imageUrl;
+        }
+
+        public List<String> getYoutubeUrls() {
+            return youtubeUrls;
         }
     }
 }

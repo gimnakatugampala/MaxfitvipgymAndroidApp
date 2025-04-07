@@ -88,30 +88,42 @@
         android:text="Set Info"
         android:visibility="gone" />
 
-    <!-- YouTube Video Modal -->
+    <!-- YouTube Video Modal (Full-Screen Overlay) -->
     <FrameLayout
         android:id="@+id/youtubeModal"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#CC000000"
         android:visibility="gone"
-        android:gravity="center">
+        android:background="#AA000000"
+    android:layout_alignParentTop="true"
+    android:layout_alignParentStart="true"
+    android:layout_alignParentEnd="true"
+    android:gravity="center">
 
-        <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
-            android:id="@+id/youtubePlayerView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center" />
+    <!-- YouTube Player View -->
+    <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+        android:id="@+id/youtubePlayerView"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_centerInParent="true" />
 
-        <!-- Close Button -->
-        <ImageButton
-            android:id="@+id/closeYoutubeButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_margin="16dp"
-            android:layout_gravity="top|end"
-            android:background="@android:color/transparent"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="#FFFFFF" />
-    </FrameLayout>
-</RelativeLayout>
+    <!-- ViewPager for YouTube Videos -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal" />
+
+    <!-- Close Button -->
+    <ImageButton
+        android:id="@+id/closeYoutubeButton"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:src="@drawable/cross"
+        android:contentDescription="Close Button"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="20dp" />
+</FrameLayout>
+
+    </RelativeLayout>
