@@ -9,6 +9,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.TranslateAnimation;
+import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -19,8 +21,12 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.bumptech.glide.Glide;
 import com.example.maxfitvipgymapp.R;
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer;
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener;
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -31,27 +37,27 @@ public class WorkoutActivity extends AppCompatActivity {
     private TextView workoutTitle, timerText, setInfoText;
     private ImageButton playPauseButton;
     private ImageView backgroundImage;
+    private Button showVideoButton;
+
+    private FrameLayout youtubeModal;
+    private YouTubePlayerView youtubePlayerView;
+    private ImageButton closeYoutubeButton;
 
     private int currentWorkoutIndex = 0;
-    private int timeLeft; // in seconds
+    private int timeLeft;
     private boolean isRunning = true;
     private int currentSet = 1;
     private List<Integer> completedSets = new ArrayList<>();
     private Handler timerHandler = new Handler();
     private Runnable timerRunnable;
-
     private MediaPlayer mediaPlayer;
-
     private boolean isTransitioning = false;
-
     private GestureDetector gestureDetector;
 
-
-
     private Workout[] workouts = {
-            new Workout("WEIGHT LIFTING", 10, "duration", 0, 0, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
-            new Workout("HIT TRAINING", 10, "set", 3, 8, "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg?auto=compress&cs=tinysrgb&w=600&lazy=load"),
-            new Workout("CARDIO BLAST", 15, "duration", 0, 0, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg")
+            new Workout("WEIGHT LIFTING", true, 600, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg"),
+            new Workout("HIT TRAINING", false, 60, Arrays.asList(8, 8, 8), "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg"),
+            new Workout("CARDIO BLAST", true, 900, null, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg")
     };
 
     @Override
@@ -64,10 +70,19 @@ public class WorkoutActivity extends AppCompatActivity {
         playPauseButton = findViewById(R.id.playPauseButton);
         backgroundImage = findViewById(R.id.backgroundImage);
         setInfoText = findViewById(R.id.setInfoText);
+        showVideoButton = findViewById(R.id.showVideoButton);
 
+        youtubeModal = findViewById(R.id.youtubeModal);
+        youtubePlayerView = findViewById(R.id.youtubePlayerView);
+        closeYoutubeButton = findViewById(R.id.closeYoutubeButton);
 
+        getLifecycle().addObserver(youtubePlayerView); // Required for proper lifecycle
 
-        // Listen for scroll events to detect upward scroll
+        // Load sample video
+        showVideoButton.setOnClickListener(v -> showYouTubeVideo("dQw4w9WgXcQ")); // replace with actual ID
+
+        closeYoutubeButton.setOnClickListener(v -> youtubeModal.setVisibility(View.GONE));
+
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
@@ -79,25 +94,17 @@ public class WorkoutActivity extends AppCompatActivity {
             }
         });
 
-
-
         ScrollView scrollContainer = findViewById(R.id.scrollContainer);
         scrollContainer.getViewTreeObserver().addOnScrollChangedListener(() -> {
             int scrollY = scrollContainer.getScrollY();
-            if (scrollY > 300 && !isTransitioning) { // arbitrary threshold
+            if (scrollY > 300 && !isTransitioning) {
                 moveToNextWorkout();
             }
         });
 
-
-
-
-        setupWorkout();
-
         playPauseButton.setOnClickListener(v -> {
             isRunning = !isRunning;
             animatePlayPauseButton();
-
             if (isRunning) {
                 startTimer();
                 playPauseButton.setImageResource(R.drawable.pause);
@@ -106,6 +113,8 @@ public class WorkoutActivity extends AppCompatActivity {
                 playPauseButton.setImageResource(R.drawable.playbutton);
             }
         });
+
+        setupWorkout();
     }
 
     private void setupWorkout() {
@@ -122,14 +131,13 @@ public class WorkoutActivity extends AppCompatActivity {
 
         updateTimerText();
 
-        if (workout.type.equals("set")) {
+        if (!workout.isDurationBased && workout.repsPerSet != null) {
             setInfoText.setVisibility(View.VISIBLE);
             updateSetInfo();
         } else {
             setInfoText.setVisibility(View.GONE);
         }
 
-        // Reset scroll position to top
         ScrollView scrollContainer = findViewById(R.id.scrollContainer);
         scrollContainer.post(() -> scrollContainer.fullScroll(View.FOCUS_UP));
 
@@ -179,7 +187,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
         playSoundEffect();
 
-        if (current.type.equals("set") && currentSet < current.sets) {
+        if (!current.isDurationBased && currentSet < current.repsPerSet.size()) {
             completedSets.add(currentSet);
             currentSet++;
             timeLeft = current.time;
@@ -210,15 +218,17 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
-
     private void updateSetInfo() {
         Workout current = workouts[currentWorkoutIndex];
-        if (!current.type.equals("set")) return;
+        if (current.repsPerSet == null) return;
 
         StringBuilder builder = new StringBuilder();
-        for (int i = 1; i <= current.sets; i++) {
-            if (completedSets.contains(i)) builder.append("✅ ");
-            else builder.append(i).append(" ");
+        for (int i = 1; i <= current.repsPerSet.size(); i++) {
+            if (completedSets.contains(i)) {
+                builder.append("✅ ");
+            } else {
+                builder.append("Set ").append(i).append(": ").append(current.repsPerSet.get(i - 1)).append(" reps\n");
+            }
         }
         setInfoText.setText(builder.toString().trim());
     }
@@ -235,38 +245,38 @@ public class WorkoutActivity extends AppCompatActivity {
         final LinearLayout centerBlock = findViewById(R.id.centerBlock);
         final ScrollView scrollContainer = findViewById(R.id.scrollContainer);
 
-        // Slide out to top (for existing content)
         TranslateAnimation slideOut = new TranslateAnimation(0, 0, 0, -centerBlock.getHeight());
         slideOut.setDuration(300);
         slideOut.setFillAfter(false);
 
-        // Slide in from bottom (for new content)
         TranslateAnimation slideIn = new TranslateAnimation(0, 0, centerBlock.getHeight(), 0);
         slideIn.setDuration(300);
         slideIn.setFillAfter(true);
 
         slideOut.setAnimationListener(new Animation.AnimationListener() {
-            @Override
-            public void onAnimationStart(Animation animation) {}
+            @Override public void onAnimationStart(Animation animation) {}
+            @Override public void onAnimationRepeat(Animation animation) {}
 
             @Override
             public void onAnimationEnd(Animation animation) {
-                // Update workout content after slide out completes
                 updateContent.run();
-
-                // Scroll to the bottom before sliding in new content
                 scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, scrollContainer.getHeight()));
-
-                // Start slide-in animation for the new workout content
                 centerBlock.startAnimation(slideIn);
             }
-
-            @Override
-            public void onAnimationRepeat(Animation animation) {}
         });
 
-        // Start slide-out animation for the current workout
         centerBlock.startAnimation(slideOut);
+    }
+
+    private void showYouTubeVideo(String videoId) {
+        youtubeModal.setVisibility(View.VISIBLE);
+
+        youtubePlayerView.addYouTubePlayerListener(new AbstractYouTubePlayerListener() {
+            @Override
+            public void onReady(YouTubePlayer youTubePlayer) {
+                youTubePlayer.cueVideo(videoId, 0);
+            }
+        });
     }
 
     @Override
@@ -277,22 +287,18 @@ public class WorkoutActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-
-
     static class Workout {
         String title;
+        boolean isDurationBased;
         int time;
-        String type;
-        int sets;
-        int reps;
+        List<Integer> repsPerSet;
         String imageUrl;
 
-        public Workout(String title, int time, String type, int sets, int reps, String imageUrl) {
+        public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet, String imageUrl) {
             this.title = title;
+            this.isDurationBased = isDurationBased;
             this.time = time;
-            this.type = type;
-            this.sets = sets;
-            this.reps = reps;
+            this.repsPerSet = repsPerSet;
             this.imageUrl = imageUrl;
         }
     }

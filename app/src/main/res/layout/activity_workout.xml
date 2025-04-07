@@ -3,19 +3,22 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Background Image -->
     <ImageView
         android:id="@+id/backgroundImage"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop" />
 
-    <!-- Scrollable Content -->
+    <!-- Scrollable Workout Content -->
     <ScrollView
         android:id="@+id/scrollContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_centerInParent="true"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:paddingTop="60dp"
+        android:paddingBottom="160dp">
 
         <LinearLayout
             android:id="@+id/centerBlock"
@@ -31,10 +34,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Workout Title"
-                android:textColor="#fff"
+                android:textColor="#FFFFFF"
                 android:textSize="28sp"
                 android:textStyle="bold"
-                android:layout_marginTop="60dp" />
+                android:layout_marginTop="20dp"
+                android:gravity="center" />
 
             <!-- Timer -->
             <TextView
@@ -42,12 +46,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="00:00"
-                android:textColor="#fff"
+                android:textColor="#FFFFFF"
                 android:textSize="70sp"
                 android:textStyle="bold"
                 android:layout_marginTop="20dp" />
 
-            <!-- Play Pause -->
+            <!-- Play/Pause Button -->
             <ImageButton
                 android:id="@+id/playPauseButton"
                 android:layout_width="70dp"
@@ -59,20 +63,55 @@
                 android:contentDescription="Play/Pause"
                 android:padding="15dp" />
 
-
-
+            <!-- Optional: Button to Show YouTube -->
+            <Button
+                android:id="@+id/showVideoButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Watch Demo"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="#FFEB3B" />
         </LinearLayout>
     </ScrollView>
 
-    <!-- Set Info (at the bottom) -->
+    <!-- Set Info -->
     <TextView
         android:id="@+id/setInfoText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#fff"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="100dp"
-        android:text="Set Info" />
+        android:text="Set Info"
+        android:visibility="gone" />
 
+    <!-- YouTube Video Modal -->
+    <FrameLayout
+        android:id="@+id/youtubeModal"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:visibility="gone"
+        android:gravity="center">
+
+        <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+            android:id="@+id/youtubePlayerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center" />
+
+        <!-- Close Button -->
+        <ImageButton
+            android:id="@+id/closeYoutubeButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_margin="16dp"
+            android:layout_gravity="top|end"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:tint="#FFFFFF" />
+    </FrameLayout>
 </RelativeLayout>
