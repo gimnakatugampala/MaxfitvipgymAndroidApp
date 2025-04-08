@@ -1,6 +1,8 @@
 package com.example.maxfitvipgymapp.Activity;
 
 import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
@@ -41,6 +43,8 @@ public class WorkoutActivity extends AppCompatActivity {
     private ImageView backgroundImage;
     private ImageView showVideoButton;
 
+    private ImageView backFromWorkout;
+
     private FrameLayout youtubeModal;
     private YouTubePlayerView youtubePlayerView;
     private ImageButton closeYoutubeButton;
@@ -79,6 +83,8 @@ public class WorkoutActivity extends AppCompatActivity {
         setInfoText = findViewById(R.id.setInfoText);
         showVideoButton = findViewById(R.id.showVideoButton);
 
+        backFromWorkout = findViewById(R.id.backFromWorkout);
+
         youtubeModal = findViewById(R.id.youtubeModal);
         youtubePlayerView = findViewById(R.id.youtubePlayerView); // Initialize after setContentView
         closeYoutubeButton = findViewById(R.id.closeYoutubeButton);
@@ -111,6 +117,31 @@ public class WorkoutActivity extends AppCompatActivity {
             // Only restart the timer if it's not already running
             if (!isRunning) {
                 startTimer();  // Start or resume the timer if it's not running
+            }
+        });
+
+        backFromWorkout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Show a confirmation dialog
+                new AlertDialog.Builder(WorkoutActivity.this)
+                        .setTitle("Stop Workout?")
+                        .setMessage("Are you sure you want to stop your workout and go back to the home screen?")
+                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                // Stop the timer
+                                stopTimer();
+
+                                // Navigate to the home screen (MainActivity)
+                                Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
+                                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); // Clear the activity stack
+                                startActivity(intent);
+                                finish();  // Close the current activity
+                            }
+                        })
+                        .setNegativeButton("No", null)  // Do nothing if "No" is clicked
+                        .show();  // Display the dialog
             }
         });
 
@@ -208,6 +239,9 @@ public class WorkoutActivity extends AppCompatActivity {
         timerHandler.removeCallbacks(timerRunnable);
         isRunning = false;
     }
+
+
+
 
     private void updateTimerText() {
         int minutes = timeLeft / 60;
