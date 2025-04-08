@@ -69,11 +69,12 @@
         <!-- Watch Demo Icon Button - Top Right Corner -->
         <ImageButton
             android:id="@+id/showVideoButton"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
             android:layout_alignParentTop="true"
             android:layout_alignParentEnd="true"
-            android:layout_margin="25dp"
+
+            android:layout_marginTop="25dp"
             android:background="@drawable/workout_circle_translucent_gray"
             android:src="@drawable/youtube"
             android:scaleType="centerInside"
@@ -111,8 +112,8 @@
         <!-- YouTube Player View -->
         <com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
             android:id="@+id/youtubePlayerView"
-            android:layout_width="300dp"
-            android:layout_height="300dp"
+            android:layout_width="00dp"
+            android:layout_height="00dp"
             android:layout_centerInParent="true" />
 
         <!-- ViewPager for YouTube Videos -->
@@ -125,13 +126,21 @@
         <!-- Close Button -->
         <ImageButton
             android:id="@+id/closeYoutubeButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:src="@drawable/cross"
-            android:contentDescription="Close Button"
-            android:layout_alignParentTop="true"
-            android:layout_alignParentEnd="true"
-            android:layout_margin="20dp" />
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:src="@drawable/close"
+        android:contentDescription="Close Button"
+
+        android:layout_marginTop="65dp"
+            android:layout_marginLeft="15dp"
+        android:background="@drawable/circular_button_background"
+        android:scaleType="centerInside"
+        android:elevation="4dp"
+        android:importantForAccessibility="yes"
+        android:focusable="true"
+        android:clickable="true" />
+
+
     </FrameLayout>
 
 </RelativeLayout>
