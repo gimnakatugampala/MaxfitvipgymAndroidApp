@@ -66,6 +66,19 @@
                 android:padding="15dp" />
         </LinearLayout>
 
+        <ImageButton
+            android:id="@+id/backFromWorkout"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentStart="true"
+            android:layout_marginTop="25dp"
+            android:background="@drawable/workout_circle_translucent_gray"
+            android:src="@drawable/arrow"
+            android:scaleType="centerInside"
+            android:contentDescription="Back Workout"
+            android:padding="10dp" />
+
         <!-- Watch Demo Icon Button - Top Right Corner -->
         <ImageButton
             android:id="@+id/showVideoButton"
