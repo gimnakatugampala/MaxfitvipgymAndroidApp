@@ -293,40 +293,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
 
 
-    // Load the next video from the list
-    private void loadNextVideo() {
-        List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
-        String currentVideoId = getCurrentlyPlayingVideoId();  // Assuming this method can fetch the current video ID being played
 
-        int currentVideoIndex = videoList.indexOf(currentVideoId);
-        if (currentVideoIndex < videoList.size() - 1) {
-            String nextVideoId = videoList.get(currentVideoIndex + 1);
-            showYouTubeVideo(nextVideoId);  // Show next video
-        } else {
-            youtubeModal.setVisibility(View.GONE);  // No next video, close the modal
-        }
-    }
-
-    // Load the previous video from the list
-    private void loadPreviousVideo() {
-        List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
-        String currentVideoId = getCurrentlyPlayingVideoId();  // Assuming this method can fetch the current video ID being played
-
-        int currentVideoIndex = videoList.indexOf(currentVideoId);
-        if (currentVideoIndex > 0) {
-            String prevVideoId = videoList.get(currentVideoIndex - 1);
-            showYouTubeVideo(prevVideoId);  // Show previous video
-        } else {
-            youtubeModal.setVisibility(View.GONE);  // No previous video, close the modal
-        }
-    }
-
-    // Placeholder for method to fetch the currently playing video ID
-    private String getCurrentlyPlayingVideoId() {
-        // This could be handled in different ways depending on how the YouTube player is set up.
-        // For simplicity, assuming it can return the video ID for the current playing video.
-        return workouts[currentWorkoutIndex].getYoutubeUrls().get(0);  // Default to first video for now
-    }
 
 
 
