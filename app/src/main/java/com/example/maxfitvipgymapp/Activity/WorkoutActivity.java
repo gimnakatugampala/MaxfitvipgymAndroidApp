@@ -91,6 +91,31 @@ public class WorkoutActivity extends AppCompatActivity {
 
         closeYoutubeButton.setOnClickListener(v -> youtubeModal.setVisibility(View.GONE));
 
+        // Load sample video (using the first video ID of the list)
+        // Load sample video (using the first video ID of the list)
+        showVideoButton.setOnClickListener(v -> {
+            // Pause the timer when the demo video modal is shown
+            stopTimer();  // Stop the timer when the video is shown
+            playPauseButton.setImageResource(R.drawable.playbutton);  // Change button to "Pause" when video is shown
+            showYouTubeVideo(workouts[currentWorkoutIndex].getYoutubeUrls().get(0)); // using the first video ID in the list
+        });
+
+// Close the YouTube modal and resume the timer
+        closeYoutubeButton.setOnClickListener(v -> {
+            // Close the modal
+            youtubeModal.setVisibility(View.GONE);
+
+            // Reset the playPauseButton to play when modal is closed
+            playPauseButton.setImageResource(R.drawable.playbutton);  // Change button to "Play" when video is closed
+
+            // Only restart the timer if it's not already running
+            if (!isRunning) {
+                startTimer();  // Start or resume the timer if it's not running
+            }
+        });
+
+
+
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
