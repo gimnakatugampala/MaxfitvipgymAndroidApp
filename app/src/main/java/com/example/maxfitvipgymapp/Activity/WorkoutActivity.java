@@ -3,7 +3,9 @@ package com.example.maxfitvipgymapp.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.GestureDetector;
@@ -20,11 +22,14 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
 import com.example.maxfitvipgymapp.Adapter.YouTubeAdapter;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer;
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener;
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView;
@@ -74,6 +79,9 @@ public class WorkoutActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
+
+
+
 
         // Initialize the views
         workoutTitle = findViewById(R.id.workoutTitle);
@@ -133,17 +141,18 @@ public class WorkoutActivity extends AppCompatActivity {
                                 // Stop the timer
                                 stopTimer();
 
-                                // Navigate to the home screen (MainActivity)
-                                Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
-                                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); // Clear the activity stack
-                                startActivity(intent);
-                                finish();  // Close the current activity
+                                // Corrected Intent creation (removed OnClickListener and fixed context)
+                                Intent serviceIntent = new Intent(WorkoutActivity.this, WorkoutForegroundService.class);
+                                serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, "Cardio");
+                                serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, 300); // 5 min
+                                ContextCompat.startForegroundService(WorkoutActivity.this, serviceIntent);
                             }
                         })
                         .setNegativeButton("No", null)  // Do nothing if "No" is clicked
                         .show();  // Display the dialog
             }
         });
+
 
 
 
@@ -187,6 +196,13 @@ public class WorkoutActivity extends AppCompatActivity {
         timeLeft = workout.getTime();
         currentSet = 1;
         completedSets.clear();
+
+//        Notification
+        Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workout.getTitle());
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, workout.getTime());
+        startService(serviceIntent);
+
 
         Glide.with(this)
                 .load(workout.getImageUrl())
@@ -283,6 +299,9 @@ public class WorkoutActivity extends AppCompatActivity {
                     .show();
             isTransitioning = false;
         }
+
+        stopService(new Intent(this, WorkoutForegroundService.class));
+
     }
 
     private void updateSetInfo() {

@@ -11,10 +11,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
 import androidx.cardview.widget.CardView;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
 import com.google.android.material.button.MaterialButton;
 
 public class HomeFragment extends Fragment {
@@ -227,15 +229,21 @@ public class HomeFragment extends Fragment {
         builder.setTitle("Start Workout");
         builder.setMessage("Are you ready to begin your workout?");
         builder.setPositiveButton("Start", (dialog, which) -> {
-            // Launch workout activity or fragment
-//            Toast.makeText(getContext(), "Workout started!", Toast.LENGTH_SHORT).show();
+            // Start the WorkoutActivity to show workout details
+            Intent workoutActivityIntent = new Intent(getActivity(), WorkoutActivity.class);
+            startActivity(workoutActivityIntent);
 
-            Intent intent = new Intent(getActivity(), WorkoutActivity.class);
-            startActivity(intent);
-            // Example: startActivity(new Intent(getContext(), WorkoutActivity.class));
+            Intent serviceIntent = new Intent(getActivity(), WorkoutForegroundService.class);
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, "Sample Workout");
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, 600);  // Example: 10 minutes in seconds
+            ContextCompat.startForegroundService(getActivity(), serviceIntent);
+
+            // Optional: Show a Toast message to confirm workout has started
+//            Toast.makeText(getContext(), "Workout Started!", Toast.LENGTH_SHORT).show();
         });
         builder.setNegativeButton("Cancel", null);
         builder.show();
     }
+
 
 }
