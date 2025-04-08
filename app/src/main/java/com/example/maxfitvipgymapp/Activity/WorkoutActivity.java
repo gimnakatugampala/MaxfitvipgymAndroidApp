@@ -39,7 +39,7 @@ public class WorkoutActivity extends AppCompatActivity {
     private TextView workoutTitle, timerText, setInfoText;
     private ImageButton playPauseButton;
     private ImageView backgroundImage;
-    private Button showVideoButton;
+    private ImageView showVideoButton;
 
     private FrameLayout youtubeModal;
     private YouTubePlayerView youtubePlayerView;

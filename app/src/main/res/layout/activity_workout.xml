@@ -66,16 +66,20 @@
                 android:padding="15dp" />
         </LinearLayout>
 
-        <!-- Watch Demo Button - Top Right Corner -->
-        <Button
+        <!-- Watch Demo Icon Button - Top Right Corner -->
+        <ImageButton
             android:id="@+id/showVideoButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Watch Demo"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
             android:layout_alignParentTop="true"
             android:layout_alignParentEnd="true"
-            android:layout_margin="16dp"
-            android:backgroundTint="#FFEB3B" />
+            android:layout_margin="25dp"
+            android:background="@drawable/workout_circle_translucent_gray"
+            android:src="@drawable/youtube"
+            android:scaleType="centerInside"
+            android:contentDescription="Watch Demo"
+            android:padding="10dp" />
+
     </RelativeLayout>
     </ScrollView>
     <!-- Set Info -->
