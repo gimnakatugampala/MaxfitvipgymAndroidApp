@@ -13,6 +13,7 @@ import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -77,11 +78,11 @@ public class WorkoutActivity extends AppCompatActivity {
 
     // Updated to include multiple YouTube video IDs
     private Workout[] workouts = {
-            new Workout("WEIGHT LIFTING", true, 600, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
+            new Workout("WEIGHT LIFTING", true, 10, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
                     Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")), // Multiple YouTube video IDs
-            new Workout("HIT TRAINING", false, 60, Arrays.asList(8, 8, 8), "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
+            new Workout("HIT TRAINING", false, 10, Arrays.asList(8, 8, 8), "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
                     Arrays.asList("9bZkp7q19f0")), // Multiple YouTube video IDs
-            new Workout("CARDIO BLAST", true, 900, null, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
+            new Workout("CARDIO BLAST", true, 10, null, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
                     Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ")) // Multiple YouTube video IDs
     };
 
@@ -336,6 +337,8 @@ public class WorkoutActivity extends AppCompatActivity {
             updateSetInfo();
             startTimer();
         } else {
+            // Send completion notification
+            sendWorkoutCompletedNotification();
             moveToNextWorkout();
         }
     }
@@ -351,6 +354,8 @@ public class WorkoutActivity extends AppCompatActivity {
                 isTransitioning = false;
             });
         } else {
+            // All workouts completed
+            sendWorkoutCompletedNotification(); // Send for last workout
             new AlertDialog.Builder(this)
                     .setTitle("Good Job!")
                     .setMessage("You have completed all workouts.")
@@ -472,6 +477,51 @@ public class WorkoutActivity extends AppCompatActivity {
         }
 
     }
+
+
+    private void sendWorkoutCompletedNotification() {
+        String channelId = "workout_channel";
+
+        // Get the current day (e.g., Tuesday, etc.)
+        String currentDay = new java.text.SimpleDateFormat("EEEE", Locale.getDefault()).format(new java.util.Date());
+        Log.d("WorkoutActivity", "Sending notification for " + currentDay + "'s workout.");
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    "Workout Notifications",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(channel);
+        }
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(currentDay + "'s Workout Completed")
+                .setContentText("Great job! You've completed today's workout.")
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true);
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+
+        // Check permission before posting the notification (for Android 13+)
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            notificationManager.notify(1, builder.build()); // ID for completed workout notification
+            Log.d("WorkoutActivity", "Notification sent successfully.");
+        } else {
+            // Optionally, request permission or handle denial
+            Log.d("WorkoutActivity", "Notification permission not granted.");
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
+    }
+
+
+
+
+
 
 
 

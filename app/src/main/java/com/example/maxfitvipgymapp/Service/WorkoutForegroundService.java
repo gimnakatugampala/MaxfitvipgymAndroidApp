@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
+
 public class WorkoutForegroundService extends android.app.Service {
 
     public static final String CHANNEL_ID = "WorkoutNotificationChannel";
@@ -32,9 +33,11 @@ public class WorkoutForegroundService extends android.app.Service {
         public void run() {
             if (timeLeft > 0) {
                 timeLeft--;
-                updateNotification();
-                handler.postDelayed(this, 1000);
+                updateNotification(null);  // Update the notification
+                handler.postDelayed(this, 1000);  // Continue the countdown
             } else {
+                // When workout is complete, stop service and update notification
+                updateNotification("Workout Complete!");
                 stopSelf();  // Stop the service when workout time is over
             }
         }
@@ -51,13 +54,11 @@ public class WorkoutForegroundService extends android.app.Service {
         startForeground(1, buildNotification());
 
         // ✅ Start the countdown timer again
-        handler.removeCallbacks(timerRunnable); // Clear any previous
-        handler.postDelayed(timerRunnable, 1000); // Start countdown
+        handler.removeCallbacks(timerRunnable);  // Clear any previous callbacks
+        handler.postDelayed(timerRunnable, 1000);  // Start countdown
 
         return START_NOT_STICKY;
     }
-
-
 
     private void sendTimerUpdateBroadcast(int timeLeft) {
         Intent broadcastIntent = new Intent("com.example.maxfitvipgymapp.TIMER_UPDATE");
@@ -65,17 +66,39 @@ public class WorkoutForegroundService extends android.app.Service {
         sendBroadcast(broadcastIntent);  // Send broadcast to update the app's timer
     }
 
-
-    private void updateNotification() {
+    private void updateNotification(String extraText) {
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        manager.notify(1, buildNotification());  // Update notification
+        PendingIntent pendingIntent = buildPendingIntent();  // Reusing the method to get PendingIntent
+
+        Notification notification = buildNotification();
+
+        // If workout is complete, add custom message
+        if (extraText != null) {
+            notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setContentTitle("Workout: " + workoutTitle)
+                    .setContentText(extraText)  // Custom text when workout is complete
+                    .setSmallIcon(R.drawable.notification)
+                    .setProgress(0, 0, false)  // Set progress to 0
+                    .setOnlyAlertOnce(true)
+                    .setOngoing(false)  // End ongoing notification
+                    .setContentIntent(pendingIntent)
+                    .setColor(Color.YELLOW)
+                    .build();
+        }
+
+        if (manager != null) {
+            manager.notify(1, notification);  // Update notification
+        }
+    }
+
+    private PendingIntent buildPendingIntent() {
+        Intent notificationIntent = new Intent(this, WorkoutActivity.class);
+        return PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
     }
 
     private Notification buildNotification() {
         int progress = 100 - (int)(((float)timeLeft / totalDuration) * 100);
-
-        Intent notificationIntent = new Intent(this, WorkoutActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = buildPendingIntent();  // Get PendingIntent
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Workout: " + workoutTitle)
@@ -109,7 +132,6 @@ public class WorkoutForegroundService extends android.app.Service {
             }
         }
     }
-
 
     @Override
     public void onDestroy() {
