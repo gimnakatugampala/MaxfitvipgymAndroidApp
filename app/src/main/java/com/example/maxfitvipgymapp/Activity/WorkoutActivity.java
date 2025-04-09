@@ -279,8 +279,10 @@ public class WorkoutActivity extends AppCompatActivity {
     private void updateServiceTimer() {
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workouts[currentWorkoutIndex].getTitle()); // Add this line
         startService(serviceIntent);
     }
+
 
 
 

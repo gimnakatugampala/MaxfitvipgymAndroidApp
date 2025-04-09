@@ -46,14 +46,17 @@ public class WorkoutForegroundService extends android.app.Service {
         timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
         totalDuration = totalDuration == 0 ? timeLeft : totalDuration; // Set once
 
-        createNotificationChannel();  // Create the notification channel
+        createNotificationChannel();
 
-        // Start the foreground service and show the notification
         startForeground(1, buildNotification());
 
-        // Don't start the internal handler anymore
+        // ✅ Start the countdown timer again
+        handler.removeCallbacks(timerRunnable); // Clear any previous
+        handler.postDelayed(timerRunnable, 1000); // Start countdown
+
         return START_NOT_STICKY;
     }
+
 
 
     private void sendTimerUpdateBroadcast(int timeLeft) {
