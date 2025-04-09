@@ -355,6 +355,14 @@ public class WorkoutActivity extends AppCompatActivity {
             timerText.setText("Resting...");
             setInfoText.setText("Rest before next set");
 
+            // Update the service to reflect rest period
+            Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, true); // Indicate resting state
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, current.getTitle());
+            startService(serviceIntent);
+
+            // Start the countdown for the rest period
             timerRunnable = new Runnable() {
                 @Override
                 public void run() {
@@ -366,9 +374,9 @@ public class WorkoutActivity extends AppCompatActivity {
                     } else {
                         // Start next set after rest
                         currentSet++;
-                        timeLeft = current.getTime();
+                        timeLeft = current.getTime(); // Reset time for the next set
                         updateSetInfo();
-                        startTimer();
+                        startTimer(); // Resume the workout
                     }
                 }
             };
@@ -381,6 +389,7 @@ public class WorkoutActivity extends AppCompatActivity {
             moveToNextWorkout();
         }
     }
+
 
 
 
