@@ -88,6 +88,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
 
     private boolean isReceiverRegistered = false;
+
     private BroadcastReceiver timerUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -261,6 +262,7 @@ public class WorkoutActivity extends AppCompatActivity {
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workout.getTitle());
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, workout.getTime());
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, false);  // Workout state
         startService(serviceIntent);
 
 
@@ -284,6 +286,8 @@ public class WorkoutActivity extends AppCompatActivity {
         playPauseButton.setImageResource(R.drawable.pause);
         startTimer();
     }
+
+
 
     private void animatePlayPauseButton() {
         playPauseButton.animate()
@@ -340,21 +344,45 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void handleTimerCompletion() {
         Workout current = workouts[currentWorkoutIndex];
-
         playSoundEffect();
 
+        // If the workout is not duration-based and we haven't completed all sets
         if (!current.isDurationBased() && currentSet < current.getRepsPerSet().size()) {
             completedSets.add(currentSet);
-            currentSet++;
-            timeLeft = current.getTime();
-            updateSetInfo();
-            startTimer();
+
+            // Start rest timer for 1 minute before next set
+            timeLeft = 60; // 1 minute rest time
+            timerText.setText("Resting...");
+            setInfoText.setText("Rest before next set");
+
+            timerRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (timeLeft > 0) {
+                        updateTimerText(); // Show actual countdown
+                        timeLeft--;
+                        updateServiceTimer(); // Update notification timer
+                        timerHandler.postDelayed(this, 1000);
+                    } else {
+                        // Start next set after rest
+                        currentSet++;
+                        timeLeft = current.getTime();
+                        updateSetInfo();
+                        startTimer();
+                    }
+                }
+            };
+
+            timerHandler.postDelayed(timerRunnable, 1000);
+            isRunning = true;
         } else {
-            // Send completion notification
+            // All sets done OR duration-based workout finished
             sendWorkoutCompletedNotification();
             moveToNextWorkout();
         }
     }
+
+
 
     private void moveToNextWorkout() {
         if (isTransitioning) return;
@@ -535,13 +563,6 @@ public class WorkoutActivity extends AppCompatActivity {
                     new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
         }
     }
-
-
-
-
-
-
-
 
 
 
