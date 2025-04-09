@@ -397,12 +397,42 @@ public class WorkoutActivity extends AppCompatActivity {
         if (isTransitioning) return;
 
         isTransitioning = true;
-        currentWorkoutIndex++;
-        if (currentWorkoutIndex < workouts.length) {
-            animateWorkoutTransition(() -> {
-                setupWorkout();
-                isTransitioning = false;
-            });
+
+        // Show rest before transitioning to next workout (only if not the last one)
+        if (currentWorkoutIndex < workouts.length - 1) {
+            timeLeft = 60; // 1 minute rest time between workouts
+            timerText.setText("Resting...");
+            setInfoText.setText("Rest before next workout");
+
+            // Update notification for resting
+            Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, true);
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, "Rest Period");
+            startService(serviceIntent);
+
+            // Countdown for rest before moving to next workout
+            timerRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (timeLeft > 0) {
+                        updateTimerText();
+                        timeLeft--;
+                        updateServiceTimer();
+                        timerHandler.postDelayed(this, 1000);
+                    } else {
+                        currentWorkoutIndex++;
+                        animateWorkoutTransition(() -> {
+                            setupWorkout();
+                            isTransitioning = false;
+                        });
+                    }
+                }
+            };
+
+            timerHandler.postDelayed(timerRunnable, 1000);
+            isRunning = true;
+
         } else {
             // All workouts completed
             sendWorkoutCompletedNotification(); // Send for last workout
@@ -412,11 +442,10 @@ public class WorkoutActivity extends AppCompatActivity {
                     .setPositiveButton("OK", (dialog, which) -> finish())
                     .show();
             isTransitioning = false;
+            stopService(new Intent(this, WorkoutForegroundService.class));
         }
-
-        stopService(new Intent(this, WorkoutForegroundService.class));
-
     }
+
 
     private void updateSetInfo() {
         Workout current = workouts[currentWorkoutIndex];
