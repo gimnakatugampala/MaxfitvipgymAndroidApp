@@ -96,6 +96,15 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     };
 
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (gestureDetector.onTouchEvent(event)) {
+            return true; // Make sure we are returning true if gesture is detected
+        }
+        return super.onTouchEvent(event);
+    }
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -185,6 +194,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
 
 
+        // Gesture detection for swipe to move to next workout
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
@@ -197,6 +207,9 @@ public class WorkoutActivity extends AppCompatActivity {
         });
 
         ScrollView scrollContainer = findViewById(R.id.scrollContainer);
+
+        scrollContainer.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
+
         scrollContainer.getViewTreeObserver().addOnScrollChangedListener(() -> {
             int scrollY = scrollContainer.getScrollY();
             if (scrollY > 300 && !isTransitioning) {
@@ -417,6 +430,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
         centerBlock.startAnimation(slideOut);
     }
+
 
     private void showYouTubeVideo(String videoId) {
         youtubeModal.setVisibility(View.VISIBLE);  // Show the full-screen YouTube modal (popup)
