@@ -34,6 +34,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
+
+
+
         bottomNavigationView = findViewById(R.id.bottomNavigationView);
 
         // Initialize the fragment map
@@ -54,6 +57,8 @@ public class MainActivity extends AppCompatActivity {
             return selectedFragment != null && loadFragment(selectedFragment);
         });
     }
+
+
 
     // Method to load a fragment into the container
     private boolean loadFragment(Fragment fragment) {

@@ -1,6 +1,8 @@
 package com.example.maxfitvipgymapp.Activity;
 
 import android.app.AlertDialog;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -26,7 +28,10 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
@@ -68,6 +73,8 @@ public class WorkoutActivity extends AppCompatActivity {
     private boolean isTransitioning = false;
     private GestureDetector gestureDetector;
 
+
+
     // Updated to include multiple YouTube video IDs
     private Workout[] workouts = {
             new Workout("WEIGHT LIFTING", true, 600, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
@@ -78,12 +85,33 @@ public class WorkoutActivity extends AppCompatActivity {
                     Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ")) // Multiple YouTube video IDs
     };
 
+
+    private boolean isReceiverRegistered = false;
+    private BroadcastReceiver timerUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int timeLeft = intent.getIntExtra("timeLeft", 0);
+            updateTimerText(timeLeft);
+        }
+    };
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
 
+
+
+
         // Register broadcast receiver to update UI when timer changes
+        // Register the receiver with LocalBroadcastManager
+        if (!isReceiverRegistered) {
+            LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
+            isReceiverRegistered = true;
+        }
+
+
 
 
 
@@ -100,6 +128,8 @@ public class WorkoutActivity extends AppCompatActivity {
         youtubeModal = findViewById(R.id.youtubeModal);
         youtubePlayerView = findViewById(R.id.youtubePlayerView); // Initialize after setContentView
         closeYoutubeButton = findViewById(R.id.closeYoutubeButton);
+
+
 
         // Add observer for lifecycle
         getLifecycle().addObserver(youtubePlayerView);
@@ -132,30 +162,24 @@ public class WorkoutActivity extends AppCompatActivity {
             }
         });
 
-        backFromWorkout.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Show a confirmation dialog
-                new AlertDialog.Builder(WorkoutActivity.this)
-                        .setTitle("Stop Workout?")
-                        .setMessage("Are you sure you want to stop your workout and go back to the home screen?")
-                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                // Stop the timer
-                                stopTimer();
-
-                                // Corrected Intent creation (removed OnClickListener and fixed context)
-                                Intent serviceIntent = new Intent(WorkoutActivity.this, WorkoutForegroundService.class);
-                                serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, "Cardio");
-                                serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, 300); // 5 min
-                                ContextCompat.startForegroundService(WorkoutActivity.this, serviceIntent);
-                            }
-                        })
-                        .setNegativeButton("No", null)  // Do nothing if "No" is clicked
-                        .show();  // Display the dialog
-            }
+        backFromWorkout.setOnClickListener(v -> {
+            new AlertDialog.Builder(WorkoutActivity.this)
+                    .setTitle("Stop Workout?")
+                    .setMessage("Are you sure you want to stop your workout and go back to the home screen?")
+                    .setPositiveButton("Yes", (dialog, which) -> {
+                        stopTimer();
+                        stopService(new Intent(WorkoutActivity.this, WorkoutForegroundService.class));
+                        sendWorkoutCancelledNotification(workouts[currentWorkoutIndex].getTitle());
+                        Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
+                        intent.putExtra("navigateTo", "home");
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    })
+                    .setNegativeButton("No", null)
+                    .show();
         });
+
 
 
 
@@ -195,14 +219,14 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
 
-    private BroadcastReceiver timerUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            int timeLeft = intent.getIntExtra("timeLeft", 0);
-            // Update the app's timer UI
-            updateTimerText(timeLeft);  // Make sure to use the same logic as your app's timer
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (!isReceiverRegistered) {
+            LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
+            isReceiverRegistered = true;
         }
-    };
+    }
 
     private void updateTimerText(int timeLeft) {
         int minutes = timeLeft / 60;
@@ -404,7 +428,50 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
 
+    //    permissions
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1001) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                sendWorkoutCancelledNotification(workouts[currentWorkoutIndex].getTitle());
+            }
+        }
+    }
 
+    private void sendWorkoutCancelledNotification(String workoutTitle) {
+        String channelId = "workout_channel";
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    "Workout Notifications",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(channel);
+        }
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("Workout Cancelled")
+                .setContentText("Today's workout \"" + workoutTitle + "\" was cancelled.")
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true);
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+
+// Check permission before posting the notification (for Android 13+)
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            notificationManager.notify(2, builder.build());
+        } else {
+            // Optionally, request permission or handle denial
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
+
+    }
 
 
 
@@ -418,7 +485,10 @@ public class WorkoutActivity extends AppCompatActivity {
         super.onDestroy();
 
         // Unregister the receiver when the activity is destroyed
-        unregisterReceiver(timerUpdateReceiver);
+        if (isReceiverRegistered) {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(timerUpdateReceiver);
+            isReceiverRegistered = false;
+        }
     }
 
     static class Workout {
