@@ -44,21 +44,17 @@ public class WorkoutForegroundService extends android.app.Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
         timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
-        totalDuration = timeLeft;
+        totalDuration = totalDuration == 0 ? timeLeft : totalDuration; // Set once
 
         createNotificationChannel();  // Create the notification channel
 
         // Start the foreground service and show the notification
         startForeground(1, buildNotification());
 
-        // Start the timer for the service
-        handler.post(timerRunnable);
-
-        // Send broadcast to update app's UI (optional, if needed)
-        sendTimerUpdateBroadcast(timeLeft);
-
-        return START_NOT_STICKY;  // Service should not restart if killed
+        // Don't start the internal handler anymore
+        return START_NOT_STICKY;
     }
+
 
     private void sendTimerUpdateBroadcast(int timeLeft) {
         Intent broadcastIntent = new Intent("com.example.maxfitvipgymapp.TIMER_UPDATE");
@@ -100,14 +96,17 @@ public class WorkoutForegroundService extends android.app.Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Workout Progress",
+                    "Workout Notification Channel",
                     NotificationManager.IMPORTANCE_LOW
             );
             serviceChannel.setDescription("Shows workout timer progress");
             NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(serviceChannel);
+            if (manager != null) {
+                manager.createNotificationChannel(serviceChannel);
+            }
         }
     }
+
 
     @Override
     public void onDestroy() {

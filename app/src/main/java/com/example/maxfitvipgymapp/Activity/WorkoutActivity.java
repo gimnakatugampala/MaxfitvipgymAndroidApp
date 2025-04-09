@@ -264,23 +264,24 @@ public class WorkoutActivity extends AppCompatActivity {
                 if (timeLeft > 0) {
                     timeLeft--;
                     updateTimerText();
-                    updateServiceTimer();
+                    updateServiceTimer(); // This keeps the notification in sync
                     timerHandler.postDelayed(this, 1000);
                 } else {
                     handleTimerCompletion();
                 }
             }
         };
+
         timerHandler.postDelayed(timerRunnable, 1000);
         isRunning = true;
     }
 
     private void updateServiceTimer() {
-        // Send the current time to the service to update the notification
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
         startService(serviceIntent);
     }
+
 
 
     private void stopTimer() {
