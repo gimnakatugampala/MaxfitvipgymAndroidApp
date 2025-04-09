@@ -37,7 +37,7 @@ public class HomeFragment extends Fragment {
 
         startWorkoutButton.setOnClickListener(v -> {
             // You can show a Toast for now or start a new Fragment/Activity
-            Toast.makeText(getContext(), "Workout Started!", Toast.LENGTH_SHORT).show();
+//            Toast.makeText(getContext(), "Workout Started!", Toast.LENGTH_SHORT).show();
 
             // TODO: Replace with actual logic to start the workout sequence.
             // For example, navigate to WorkoutFragment or open a Workout dialog

@@ -388,9 +388,13 @@ public class WorkoutActivity extends AppCompatActivity {
         StringBuilder builder = new StringBuilder();
         for (int i = 1; i <= current.getRepsPerSet().size(); i++) {
             if (completedSets.contains(i)) {
-                builder.append("✅ ");
+                builder.append("✅");
             } else {
-                builder.append("Set ").append(i).append(": ").append(current.getRepsPerSet().get(i - 1)).append(" reps\n");
+                builder.append(current.getRepsPerSet().get(i - 1));
+            }
+
+            if (i < current.getRepsPerSet().size()) {
+                builder.append("-");
             }
         }
         setInfoText.setText(builder.toString().trim());
