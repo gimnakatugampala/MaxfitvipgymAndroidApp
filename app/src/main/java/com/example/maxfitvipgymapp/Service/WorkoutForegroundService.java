@@ -16,7 +16,6 @@ import androidx.core.app.NotificationCompat;
 
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
-
 public class WorkoutForegroundService extends android.app.Service {
 
     public static final String CHANNEL_ID = "WorkoutNotificationChannel";
@@ -52,10 +51,21 @@ public class WorkoutForegroundService extends android.app.Service {
         // Start the foreground service and show the notification
         startForeground(1, buildNotification());
 
-        handler.post(timerRunnable);  // Start the timer
+        // Start the timer for the service
+        handler.post(timerRunnable);
+
+        // Send broadcast to update app's UI (optional, if needed)
+        sendTimerUpdateBroadcast(timeLeft);
 
         return START_NOT_STICKY;  // Service should not restart if killed
     }
+
+    private void sendTimerUpdateBroadcast(int timeLeft) {
+        Intent broadcastIntent = new Intent("com.example.maxfitvipgymapp.TIMER_UPDATE");
+        broadcastIntent.putExtra("timeLeft", timeLeft);
+        sendBroadcast(broadcastIntent);  // Send broadcast to update the app's timer
+    }
+
 
     private void updateNotification() {
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -66,7 +76,6 @@ public class WorkoutForegroundService extends android.app.Service {
         int progress = 100 - (int)(((float)timeLeft / totalDuration) * 100);
 
         Intent notificationIntent = new Intent(this, WorkoutActivity.class);
-        // Use FLAG_IMMUTABLE to comply with API 31+ requirements
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -80,7 +89,6 @@ public class WorkoutForegroundService extends android.app.Service {
                 .setColor(Color.YELLOW)
                 .build();
     }
-
 
     private String formatTime(int totalSecs) {
         int minutes = totalSecs / 60;

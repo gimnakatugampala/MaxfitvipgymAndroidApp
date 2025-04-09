@@ -1,8 +1,11 @@
 package com.example.maxfitvipgymapp.Activity;
 
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
@@ -80,6 +83,7 @@ public class WorkoutActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
 
+        // Register broadcast receiver to update UI when timer changes
 
 
 
@@ -190,6 +194,24 @@ public class WorkoutActivity extends AppCompatActivity {
         setupWorkout();
     }
 
+
+    private BroadcastReceiver timerUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int timeLeft = intent.getIntExtra("timeLeft", 0);
+            // Update the app's timer UI
+            updateTimerText(timeLeft);  // Make sure to use the same logic as your app's timer
+        }
+    };
+
+    private void updateTimerText(int timeLeft) {
+        int minutes = timeLeft / 60;
+        int seconds = timeLeft % 60;
+        timerText.setText(String.format(Locale.getDefault(), "%d:%02d", minutes, seconds));
+    }
+
+
+
     private void setupWorkout() {
         Workout workout = workouts[currentWorkoutIndex];
         workoutTitle.setText(workout.getTitle());
@@ -235,12 +257,14 @@ public class WorkoutActivity extends AppCompatActivity {
     private void startTimer() {
         stopTimer();
 
+        // Start both the app timer and the service timer
         timerRunnable = new Runnable() {
             @Override
             public void run() {
                 if (timeLeft > 0) {
                     timeLeft--;
                     updateTimerText();
+                    updateServiceTimer();
                     timerHandler.postDelayed(this, 1000);
                 } else {
                     handleTimerCompletion();
@@ -250,6 +274,14 @@ public class WorkoutActivity extends AppCompatActivity {
         timerHandler.postDelayed(timerRunnable, 1000);
         isRunning = true;
     }
+
+    private void updateServiceTimer() {
+        // Send the current time to the service to update the notification
+        Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
+        startService(serviceIntent);
+    }
+
 
     private void stopTimer() {
         timerHandler.removeCallbacks(timerRunnable);
@@ -381,6 +413,9 @@ public class WorkoutActivity extends AppCompatActivity {
             mediaPlayer.release();
         }
         super.onDestroy();
+
+        // Unregister the receiver when the activity is destroyed
+        unregisterReceiver(timerUpdateReceiver);
     }
 
     static class Workout {
