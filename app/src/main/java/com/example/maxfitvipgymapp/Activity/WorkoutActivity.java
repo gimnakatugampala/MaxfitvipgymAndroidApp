@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -75,7 +76,6 @@ public class WorkoutActivity extends AppCompatActivity {
     private GestureDetector gestureDetector;
 
 
-
     // Updated to include multiple YouTube video IDs
     private Workout[] workouts = {
             new Workout("WEIGHT LIFTING", true, 10, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
@@ -112,18 +112,12 @@ public class WorkoutActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
 
-
-
-
         // Register broadcast receiver to update UI when timer changes
         // Register the receiver with LocalBroadcastManager
         if (!isReceiverRegistered) {
             LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
             isReceiverRegistered = true;
         }
-
-
-
 
 
         // Initialize the views
@@ -192,9 +186,6 @@ public class WorkoutActivity extends AppCompatActivity {
         });
 
 
-
-
-
         // Gesture detection for swipe to move to next workout
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
@@ -249,8 +240,6 @@ public class WorkoutActivity extends AppCompatActivity {
         timerText.setText(String.format(Locale.getDefault(), "%d:%02d", minutes, seconds));
     }
 
-
-
     private void setupWorkout() {
         Workout workout = workouts[currentWorkoutIndex];
         workoutTitle.setText(workout.getTitle());
@@ -286,8 +275,6 @@ public class WorkoutActivity extends AppCompatActivity {
         playPauseButton.setImageResource(R.drawable.pause);
         startTimer();
     }
-
-
 
     private void animatePlayPauseButton() {
         playPauseButton.animate()
@@ -325,15 +312,10 @@ public class WorkoutActivity extends AppCompatActivity {
         startService(serviceIntent);
     }
 
-
-
-
     private void stopTimer() {
         timerHandler.removeCallbacks(timerRunnable);
         isRunning = false;
     }
-
-
 
 
     private void updateTimerText() {
@@ -355,14 +337,6 @@ public class WorkoutActivity extends AppCompatActivity {
             timerText.setText("Resting...");
             setInfoText.setText("Rest before next set");
 
-            // Update the service to reflect rest period
-            Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, true); // Indicate resting state
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, current.getTitle());
-            startService(serviceIntent);
-
-            // Start the countdown for the rest period
             timerRunnable = new Runnable() {
                 @Override
                 public void run() {
@@ -374,9 +348,9 @@ public class WorkoutActivity extends AppCompatActivity {
                     } else {
                         // Start next set after rest
                         currentSet++;
-                        timeLeft = current.getTime(); // Reset time for the next set
+                        timeLeft = current.getTime();
                         updateSetInfo();
-                        startTimer(); // Resume the workout
+                        startTimer();
                     }
                 }
             };
@@ -390,61 +364,54 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
-
-
-
     private void moveToNextWorkout() {
         if (isTransitioning) return;
 
         isTransitioning = true;
 
-        // Show rest before transitioning to next workout (only if not the last one)
+        // Check if it's the last workout
         if (currentWorkoutIndex < workouts.length - 1) {
-            timeLeft = 60; // 1 minute rest time between workouts
+            // Start rest time before transitioning to next workout
+            timeLeft = 60; // 1 minute rest
             timerText.setText("Resting...");
             setInfoText.setText("Rest before next workout");
 
-            // Update notification for resting
-            Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, true);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, "Rest Period");
-            startService(serviceIntent);
-
-            // Countdown for rest before moving to next workout
+            // Update the UI with the remaining rest time
             timerRunnable = new Runnable() {
                 @Override
                 public void run() {
                     if (timeLeft > 0) {
-                        updateTimerText();
+                        updateTimerText(); // Update the countdown timer
                         timeLeft--;
-                        updateServiceTimer();
+                        updateServiceTimer(); // Keep the notification timer in sync
                         timerHandler.postDelayed(this, 1000);
                     } else {
+                        // After rest period, move to next workout
                         currentWorkoutIndex++;
                         animateWorkoutTransition(() -> {
                             setupWorkout();
                             isTransitioning = false;
                         });
+
+                        stopService(new Intent(WorkoutActivity.this, WorkoutForegroundService.class));
                     }
                 }
             };
 
+            // Start the timer for the rest period
             timerHandler.postDelayed(timerRunnable, 1000);
-            isRunning = true;
-
         } else {
-            // All workouts completed
-            sendWorkoutCompletedNotification(); // Send for last workout
-            new AlertDialog.Builder(this)
+            // No rest time after the last workout
+            sendWorkoutCompletedNotification(); // Send notification for the last workout
+            new AlertDialog.Builder(WorkoutActivity.this)
                     .setTitle("Good Job!")
                     .setMessage("You have completed all workouts.")
                     .setPositiveButton("OK", (dialog, which) -> finish())
                     .show();
             isTransitioning = false;
-            stopService(new Intent(this, WorkoutForegroundService.class));
         }
     }
+
 
 
     private void updateSetInfo() {
