@@ -1,7 +1,9 @@
 package com.example.maxfitvipgymapp.Fragments;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -29,9 +31,10 @@ import com.google.android.material.button.MaterialButton;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
+import java.util.Set;
 
 public class HomeFragment extends Fragment {
 
@@ -49,12 +52,21 @@ public class HomeFragment extends Fragment {
         workoutScheduleContainer = view.findViewById(R.id.workout_schedule_container);
         MaterialButton startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
 
-        // --- NEW: Top Streak Badge Interaction ---
+        // Update streak badge with current streak
         CardView streakBadge = view.findViewById(R.id.streakBadge);
         if (streakBadge != null) {
+            // Get current streak from SharedPreferences
+            SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
+            int currentStreak = prefs.getInt("currentStreak", 0);
+
+            // Update the streak number in the badge
+            TextView streakText = view.findViewById(R.id.streakNumber);
+            if (streakText != null) {
+                streakText.setText(String.valueOf(currentStreak));
+            }
+
             streakBadge.setOnClickListener(v -> showStreakDialog());
         }
-        // -----------------------------------------
 
         startWorkoutButton.setOnClickListener(v -> showWorkoutStartDialog());
 
@@ -75,6 +87,40 @@ public class HomeFragment extends Fragment {
         return view;
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Update streak when fragment resumes
+        updateStreakDisplay();
+    }
+
+    private void updateStreakDisplay() {
+        View view = getView();
+        if (view != null) {
+            SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
+            int currentStreak = prefs.getInt("currentStreak", 0);
+
+            // Update streak badge
+            TextView streakNumber = view.findViewById(R.id.streakNumber);
+            if (streakNumber != null) {
+                streakNumber.setText(String.valueOf(currentStreak));
+            }
+
+            // Update streak card
+            updateStreakCard(currentStreak);
+        }
+    }
+
+    private void updateStreakCard(int streak) {
+        View view = getView();
+        if (view != null) {
+            TextView streakCardTitle = view.findViewById(R.id.streakCardTitle);
+            if (streakCardTitle != null) {
+                streakCardTitle.setText(streak + "-Day Running Streak");
+            }
+        }
+    }
+
     private void showStreakDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         LayoutInflater inflater = LayoutInflater.from(getContext());
@@ -91,6 +137,15 @@ public class HomeFragment extends Fragment {
         MaterialButton btnContinue = dialogView.findViewById(R.id.btnContinue);
         ImageView btnClose = dialogView.findViewById(R.id.btnClose);
 
+        // Update dialog title with current streak
+        SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
+        int currentStreak = prefs.getInt("currentStreak", 0);
+
+        TextView streakTitle = dialogView.findViewById(R.id.streakTitle);
+        if (streakTitle != null) {
+            streakTitle.setText(currentStreak + " Day Streak!");
+        }
+
         setupStreakCalendar(recyclerView);
         animateStreakIcon(streakIcon);
 
@@ -105,6 +160,29 @@ public class HomeFragment extends Fragment {
     private void setupStreakCalendar(RecyclerView recyclerView) {
         List<MonthModel> monthList = new ArrayList<>();
 
+        // Get workout history from SharedPreferences
+        SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
+        String lastWorkoutDate = prefs.getString("lastWorkoutDate", "");
+        int currentStreak = prefs.getInt("currentStreak", 0);
+
+        // Create a set of completed workout dates
+        Set<String> completedDates = new HashSet<>();
+        if (!lastWorkoutDate.isEmpty() && currentStreak > 0) {
+            Calendar cal = Calendar.getInstance();
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                cal.setTime(sdf.parse(lastWorkoutDate));
+
+                // Add all dates in the current streak
+                for (int i = 0; i < currentStreak; i++) {
+                    completedDates.add(sdf.format(cal.getTime()));
+                    cal.add(Calendar.DAY_OF_MONTH, -1);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         // Start Date: 5 months ago
         Calendar startCal = Calendar.getInstance();
         startCal.add(Calendar.MONTH, -5);
@@ -112,7 +190,7 @@ public class HomeFragment extends Fragment {
 
         Calendar endCal = Calendar.getInstance();
         Calendar iteratorCal = (Calendar) startCal.clone();
-        Random random = new Random();
+        SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
         // Loop through months
         while (iteratorCal.before(endCal) ||
@@ -136,7 +214,10 @@ public class HomeFragment extends Fragment {
                 Calendar currentDay = (Calendar) iteratorCal.clone();
                 currentDay.set(Calendar.DAY_OF_MONTH, day);
                 boolean isFuture = currentDay.after(endCal);
-                boolean attended = !isFuture && random.nextBoolean();
+
+                // Check if this date is in completed dates
+                String dateString = dateFormatter.format(currentDay.getTime());
+                boolean attended = completedDates.contains(dateString);
 
                 daysInMonth.add(new DateModel("", String.valueOf(day), attended, isFuture));
             }

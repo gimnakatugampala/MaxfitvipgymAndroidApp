@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
@@ -40,12 +41,11 @@ import com.bumptech.glide.Glide;
 import com.example.maxfitvipgymapp.Adapter.YouTubeAdapter;
 import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer;
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener;
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -57,11 +57,9 @@ public class WorkoutActivity extends AppCompatActivity {
     private ImageButton playPauseButton;
     private ImageView backgroundImage;
     private ImageView showVideoButton;
-
     private ImageView backFromWorkout;
 
     private FrameLayout youtubeModal;
-    private YouTubePlayerView youtubePlayerView;
     private ImageButton closeYoutubeButton;
 
     private int currentWorkoutIndex = 0;
@@ -74,18 +72,20 @@ public class WorkoutActivity extends AppCompatActivity {
     private MediaPlayer mediaPlayer;
     private boolean isTransitioning = false;
     private GestureDetector gestureDetector;
+    private boolean isResting = false;
 
-
-    // Updated to include multiple YouTube video IDs
+    // Workout data - Mix of duration and strength-based
     private Workout[] workouts = {
-            new Workout("WEIGHT LIFTING", true, 10, null, "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
-                    Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")), // Multiple YouTube video IDs
-            new Workout("HIT TRAINING", false, 10, Arrays.asList(8, 8, 8), "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
-                    Arrays.asList("9bZkp7q19f0")), // Multiple YouTube video IDs
-            new Workout("CARDIO BLAST", true, 10, null, "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
-                    Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ")) // Multiple YouTube video IDs
+            new Workout("WEIGHT LIFTING", false, 60, Arrays.asList(10, 10, 10),
+                    "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
+                    Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")), // 3 sets x 10 reps
+            new Workout("CARDIO BLAST", true, 300, null,
+                    "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
+                    Arrays.asList("9bZkp7q19f0")), // 5 minutes duration
+            new Workout("PUSH UPS", false, 45, Arrays.asList(15, 15, 15),
+                    "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
+                    Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ")) // 3 sets x 15 reps
     };
-
 
     private boolean isReceiverRegistered = false;
 
@@ -100,70 +100,43 @@ public class WorkoutActivity extends AppCompatActivity {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (gestureDetector.onTouchEvent(event)) {
-            return true; // Make sure we are returning true if gesture is detected
+            return true;
         }
         return super.onTouchEvent(event);
     }
-
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
 
-        // Register broadcast receiver to update UI when timer changes
-        // Register the receiver with LocalBroadcastManager
         if (!isReceiverRegistered) {
             LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
             isReceiverRegistered = true;
         }
 
-
-        // Initialize the views
+        // Initialize views
         workoutTitle = findViewById(R.id.workoutTitle);
         timerText = findViewById(R.id.timerText);
         playPauseButton = findViewById(R.id.playPauseButton);
         backgroundImage = findViewById(R.id.backgroundImage);
         setInfoText = findViewById(R.id.setInfoText);
         showVideoButton = findViewById(R.id.showVideoButton);
-
         backFromWorkout = findViewById(R.id.backFromWorkout);
-
         youtubeModal = findViewById(R.id.youtubeModal);
-        youtubePlayerView = findViewById(R.id.youtubePlayerView); // Initialize after setContentView
         closeYoutubeButton = findViewById(R.id.closeYoutubeButton);
 
-
-
-        // Add observer for lifecycle
-        getLifecycle().addObserver(youtubePlayerView);
-
-        // Load sample video (using the first video ID of the list)
-        showVideoButton.setOnClickListener(v -> showYouTubeVideo(workouts[currentWorkoutIndex].getYoutubeUrls().get(0))); // using the first video ID in the list
-
-        closeYoutubeButton.setOnClickListener(v -> youtubeModal.setVisibility(View.GONE));
-
-        // Load sample video (using the first video ID of the list)
-        // Load sample video (using the first video ID of the list)
         showVideoButton.setOnClickListener(v -> {
-            // Pause the timer when the demo video modal is shown
-            stopTimer();  // Stop the timer when the video is shown
-            playPauseButton.setImageResource(R.drawable.playbutton);  // Change button to "Pause" when video is shown
-            showYouTubeVideo(workouts[currentWorkoutIndex].getYoutubeUrls().get(0)); // using the first video ID in the list
+            stopTimer();
+            playPauseButton.setImageResource(R.drawable.playbutton);
+            showYouTubeVideo(workouts[currentWorkoutIndex].getYoutubeUrls().get(0));
         });
 
-// Close the YouTube modal and resume the timer
         closeYoutubeButton.setOnClickListener(v -> {
-            // Close the modal
             youtubeModal.setVisibility(View.GONE);
-
-            // Reset the playPauseButton to play when modal is closed
-            playPauseButton.setImageResource(R.drawable.playbutton);  // Change button to "Play" when video is closed
-
-            // Only restart the timer if it's not already running
+            playPauseButton.setImageResource(R.drawable.playbutton);
             if (!isRunning) {
-                startTimer();  // Start or resume the timer if it's not running
+                startTimer();
             }
         });
 
@@ -185,8 +158,6 @@ public class WorkoutActivity extends AppCompatActivity {
                     .show();
         });
 
-
-        // Gesture detection for swipe to move to next workout
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
@@ -199,15 +170,7 @@ public class WorkoutActivity extends AppCompatActivity {
         });
 
         ScrollView scrollContainer = findViewById(R.id.scrollContainer);
-
         scrollContainer.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
-
-        scrollContainer.getViewTreeObserver().addOnScrollChangedListener(() -> {
-            int scrollY = scrollContainer.getScrollY();
-            if (scrollY > 300 && !isTransitioning) {
-                moveToNextWorkout();
-            }
-        });
 
         playPauseButton.setOnClickListener(v -> {
             isRunning = !isRunning;
@@ -223,7 +186,6 @@ public class WorkoutActivity extends AppCompatActivity {
 
         setupWorkout();
     }
-
 
     @Override
     protected void onStart() {
@@ -246,14 +208,14 @@ public class WorkoutActivity extends AppCompatActivity {
         timeLeft = workout.getTime();
         currentSet = 1;
         completedSets.clear();
+        isResting = false;
 
-//        Notification
+        // Start foreground service
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workout.getTitle());
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, workout.getTime());
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, false);  // Workout state
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, false);
         startService(serviceIntent);
-
 
         Glide.with(this)
                 .load(workout.getImageUrl())
@@ -262,6 +224,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
         updateTimerText();
 
+        // Show set info only for strength-based workouts
         if (!workout.isDurationBased() && workout.getRepsPerSet() != null) {
             setInfoText.setVisibility(View.VISIBLE);
             updateSetInfo();
@@ -286,14 +249,13 @@ public class WorkoutActivity extends AppCompatActivity {
     private void startTimer() {
         stopTimer();
 
-        // Start both the app timer and the service timer
         timerRunnable = new Runnable() {
             @Override
             public void run() {
                 if (timeLeft > 0) {
                     timeLeft--;
                     updateTimerText();
-                    updateServiceTimer(); // This keeps the notification in sync
+                    updateServiceTimer();
                     timerHandler.postDelayed(this, 1000);
                 } else {
                     handleTimerCompletion();
@@ -308,7 +270,8 @@ public class WorkoutActivity extends AppCompatActivity {
     private void updateServiceTimer() {
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workouts[currentWorkoutIndex].getTitle()); // Add this line
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workouts[currentWorkoutIndex].getTitle());
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, isResting);
         startService(serviceIntent);
     }
 
@@ -316,7 +279,6 @@ public class WorkoutActivity extends AppCompatActivity {
         timerHandler.removeCallbacks(timerRunnable);
         isRunning = false;
     }
-
 
     private void updateTimerText() {
         int minutes = timeLeft / 60;
@@ -328,37 +290,35 @@ public class WorkoutActivity extends AppCompatActivity {
         Workout current = workouts[currentWorkoutIndex];
         playSoundEffect();
 
-        // If the workout is not duration-based and we haven't completed all sets
-        if (!current.isDurationBased() && currentSet < current.getRepsPerSet().size()) {
-            completedSets.add(currentSet);
+        // For strength-based workouts
+        if (!current.isDurationBased() && current.getRepsPerSet() != null) {
+            if (isResting) {
+                // Rest period done, start next set
+                isResting = false;
+                currentSet++;
+                timeLeft = current.getTime();
+                workoutTitle.setText(current.getTitle());
+                updateSetInfo();
+                startTimer();
+            } else {
+                // Set completed
+                completedSets.add(currentSet);
 
-            // Start rest timer for 1 minute before next set
-            timeLeft = 60; // 1 minute rest time
-            timerText.setText("Resting...");
-            setInfoText.setText("Rest before next set");
-
-            timerRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (timeLeft > 0) {
-                        updateTimerText(); // Show actual countdown
-                        timeLeft--;
-                        updateServiceTimer(); // Update notification timer
-                        timerHandler.postDelayed(this, 1000);
-                    } else {
-                        // Start next set after rest
-                        currentSet++;
-                        timeLeft = current.getTime();
-                        updateSetInfo();
-                        startTimer();
-                    }
+                if (currentSet < current.getRepsPerSet().size()) {
+                    // Start rest period before next set
+                    isResting = true;
+                    timeLeft = 60; // 1 minute rest
+                    workoutTitle.setText("REST - " + current.getTitle());
+                    setInfoText.setText("Rest before Set " + (currentSet + 1));
+                    startTimer();
+                } else {
+                    // All sets completed, move to next workout
+                    sendWorkoutCompletedNotification();
+                    moveToNextWorkout();
                 }
-            };
-
-            timerHandler.postDelayed(timerRunnable, 1000);
-            isRunning = true;
+            }
         } else {
-            // All sets done OR duration-based workout finished
+            // Duration-based workout completed
             sendWorkoutCompletedNotification();
             moveToNextWorkout();
         }
@@ -366,53 +326,100 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void moveToNextWorkout() {
         if (isTransitioning) return;
-
         isTransitioning = true;
 
-        // Check if it's the last workout
         if (currentWorkoutIndex < workouts.length - 1) {
-            // Start rest time before transitioning to next workout
+            // Rest before next workout
+            isResting = true;
             timeLeft = 60; // 1 minute rest
             timerText.setText("Resting...");
             setInfoText.setText("Rest before next workout");
+            setInfoText.setVisibility(View.VISIBLE);
 
-            // Update the UI with the remaining rest time
             timerRunnable = new Runnable() {
                 @Override
                 public void run() {
                     if (timeLeft > 0) {
-                        updateTimerText(); // Update the countdown timer
+                        updateTimerText();
                         timeLeft--;
-                        updateServiceTimer(); // Keep the notification timer in sync
+                        updateServiceTimer();
                         timerHandler.postDelayed(this, 1000);
                     } else {
-                        // After rest period, move to next workout
                         currentWorkoutIndex++;
                         animateWorkoutTransition(() -> {
                             setupWorkout();
                             isTransitioning = false;
                         });
-
                         stopService(new Intent(WorkoutActivity.this, WorkoutForegroundService.class));
                     }
                 }
             };
 
-            // Start the timer for the rest period
             timerHandler.postDelayed(timerRunnable, 1000);
         } else {
-            // No rest time after the last workout
-            sendWorkoutCompletedNotification(); // Send notification for the last workout
+            // All workouts completed - Update streak
+            updateStreak();
+            sendWorkoutCompletedNotification();
+
             new AlertDialog.Builder(WorkoutActivity.this)
-                    .setTitle("Good Job!")
-                    .setMessage("You have completed all workouts.")
-                    .setPositiveButton("OK", (dialog, which) -> finish())
+                    .setTitle("Great Job! 🎉")
+                    .setMessage("You've completed all workouts for today! Your streak has been updated.")
+                    .setPositiveButton("OK", (dialog, which) -> {
+                        Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
+                        intent.putExtra("navigateTo", "home");
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    })
+                    .setCancelable(false)
                     .show();
             isTransitioning = false;
         }
     }
 
+    private void updateStreak() {
+        SharedPreferences prefs = getSharedPreferences("WorkoutPrefs", MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
 
+        // Get current date
+        String today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().getTime());
+        String lastWorkoutDate = prefs.getString("lastWorkoutDate", "");
+        int currentStreak = prefs.getInt("currentStreak", 0);
+
+        // Check if workout already completed today
+        if (!today.equals(lastWorkoutDate)) {
+            // Calculate if streak should continue
+            Calendar lastDate = Calendar.getInstance();
+            Calendar todayDate = Calendar.getInstance();
+
+            if (!lastWorkoutDate.isEmpty()) {
+                try {
+                    lastDate.setTime(new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(lastWorkoutDate));
+                    long diffInMillis = todayDate.getTimeInMillis() - lastDate.getTimeInMillis();
+                    long diffInDays = diffInMillis / (1000 * 60 * 60 * 24);
+
+                    if (diffInDays == 1) {
+                        // Consecutive day - increase streak
+                        currentStreak++;
+                    } else if (diffInDays > 1) {
+                        // Streak broken - reset to 1
+                        currentStreak = 1;
+                    }
+                } catch (Exception e) {
+                    currentStreak = 1;
+                }
+            } else {
+                // First workout
+                currentStreak = 1;
+            }
+
+            editor.putString("lastWorkoutDate", today);
+            editor.putInt("currentStreak", currentStreak);
+            editor.apply();
+
+            Log.d("WorkoutActivity", "Streak updated to: " + currentStreak);
+        }
+    }
 
     private void updateSetInfo() {
         Workout current = workouts[currentWorkoutIndex];
@@ -422,17 +429,18 @@ public class WorkoutActivity extends AppCompatActivity {
         for (int i = 1; i <= current.getRepsPerSet().size(); i++) {
             if (completedSets.contains(i)) {
                 builder.append("✅");
+            } else if (i == currentSet) {
+                builder.append("[").append(current.getRepsPerSet().get(i - 1)).append("]");
             } else {
                 builder.append(current.getRepsPerSet().get(i - 1));
             }
 
             if (i < current.getRepsPerSet().size()) {
-                builder.append("-");
+                builder.append(" - ");
             }
         }
         setInfoText.setText(builder.toString().trim());
     }
-
 
     private void playSoundEffect() {
         if (mediaPlayer != null) {
@@ -469,23 +477,14 @@ public class WorkoutActivity extends AppCompatActivity {
         centerBlock.startAnimation(slideOut);
     }
 
-
     private void showYouTubeVideo(String videoId) {
-        youtubeModal.setVisibility(View.VISIBLE);  // Show the full-screen YouTube modal (popup)
-
+        youtubeModal.setVisibility(View.VISIBLE);
         List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
-
-        // Set up ViewPager2 with an adapter
         YouTubeAdapter adapter = new YouTubeAdapter(videoList);
         ViewPager2 viewPager = findViewById(R.id.viewPager);
         viewPager.setAdapter(adapter);
-
-        // Close YouTube modal on click
-        closeYoutubeButton.setOnClickListener(v -> youtubeModal.setVisibility(View.GONE));  // Hide the modal
     }
 
-
-    //    permissions
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -518,25 +517,18 @@ public class WorkoutActivity extends AppCompatActivity {
 
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
 
-// Check permission before posting the notification (for Android 13+)
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
                 == PackageManager.PERMISSION_GRANTED) {
             notificationManager.notify(2, builder.build());
         } else {
-            // Optionally, request permission or handle denial
             ActivityCompat.requestPermissions(this,
                     new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
         }
-
     }
-
 
     private void sendWorkoutCompletedNotification() {
         String channelId = "workout_channel";
-
-        // Get the current day (e.g., Tuesday, etc.)
         String currentDay = new java.text.SimpleDateFormat("EEEE", Locale.getDefault()).format(new java.util.Date());
-        Log.d("WorkoutActivity", "Sending notification for " + currentDay + "'s workout.");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -557,20 +549,11 @@ public class WorkoutActivity extends AppCompatActivity {
 
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
 
-        // Check permission before posting the notification (for Android 13+)
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
                 == PackageManager.PERMISSION_GRANTED) {
-            notificationManager.notify(1, builder.build()); // ID for completed workout notification
-            Log.d("WorkoutActivity", "Notification sent successfully.");
-        } else {
-            // Optionally, request permission or handle denial
-            Log.d("WorkoutActivity", "Notification permission not granted.");
-            ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            notificationManager.notify(1, builder.build());
         }
     }
-
-
 
     @Override
     protected void onDestroy() {
@@ -579,7 +562,6 @@ public class WorkoutActivity extends AppCompatActivity {
         }
         super.onDestroy();
 
-        // Unregister the receiver when the activity is destroyed
         if (isReceiverRegistered) {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(timerUpdateReceiver);
             isReceiverRegistered = false;
@@ -592,7 +574,7 @@ public class WorkoutActivity extends AppCompatActivity {
         private int time;
         private List<Integer> repsPerSet;
         private String imageUrl;
-        private List<String> youtubeUrls;  // New field for multiple YouTube video IDs
+        private List<String> youtubeUrls;
 
         public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet, String imageUrl, List<String> youtubeUrls) {
             this.title = title;
@@ -603,28 +585,11 @@ public class WorkoutActivity extends AppCompatActivity {
             this.youtubeUrls = youtubeUrls;
         }
 
-        public String getTitle() {
-            return title;
-        }
-
-        public boolean isDurationBased() {
-            return isDurationBased;
-        }
-
-        public int getTime() {
-            return time;
-        }
-
-        public List<Integer> getRepsPerSet() {
-            return repsPerSet;
-        }
-
-        public String getImageUrl() {
-            return imageUrl;
-        }
-
-        public List<String> getYoutubeUrls() {
-            return youtubeUrls;
-        }
+        public String getTitle() { return title; }
+        public boolean isDurationBased() { return isDurationBased; }
+        public int getTime() { return time; }
+        public List<Integer> getRepsPerSet() { return repsPerSet; }
+        public String getImageUrl() { return imageUrl; }
+        public List<String> getYoutubeUrls() { return youtubeUrls; }
     }
 }

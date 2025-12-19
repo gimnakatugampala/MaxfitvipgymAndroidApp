@@ -43,9 +43,10 @@
                 android:layout_marginBottom="10dp"/>
 
             <TextView
+                android:id="@+id/streakTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="7 Day Streak!"
+                android:text="0 Day Streak!"
                 android:textColor="#FFD300"
                 android:textSize="22sp"
                 android:textStyle="bold"

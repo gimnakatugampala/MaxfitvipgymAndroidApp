@@ -63,9 +63,10 @@
                         android:layout_marginEnd="6dp" />
 
                     <TextView
+                        android:id="@+id/streakNumber"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="7"
+                        android:text="0"
                         android:textColor="#FF9800"
                         android:textSize="18sp"
                         android:textStyle="bold" />
@@ -104,9 +105,10 @@
                     android:layout_marginStart="16dp">
 
                     <TextView
+                        android:id="@+id/streakCardTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="7-Day Running Streak"
+                        android:text="0-Day Running Streak"
                         android:textColor="#FFFFFF"
                         android:textSize="18sp"
                         android:textStyle="bold" />
@@ -114,7 +116,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="1 Days • 8 KM • 1h.12m.34s"
+                        android:text="Keep it up! Complete today's workout"
                         android:textColor="#AAAAAA"
                         android:textSize="14sp" />
                 </LinearLayout>
