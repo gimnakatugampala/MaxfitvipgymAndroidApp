@@ -5,7 +5,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -13,7 +12,6 @@ import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.CountDownTimer;
 import android.os.Handler;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -58,6 +56,7 @@ public class WorkoutActivity extends AppCompatActivity {
     private ImageView backgroundImage;
     private ImageView showVideoButton;
     private ImageView backFromWorkout;
+    private ScrollView scrollContainer;
 
     private FrameLayout youtubeModal;
     private ImageButton closeYoutubeButton;
@@ -74,17 +73,16 @@ public class WorkoutActivity extends AppCompatActivity {
     private GestureDetector gestureDetector;
     private boolean isResting = false;
 
-    // Workout data - Mix of duration and strength-based
     private Workout[] workouts = {
-            new Workout("WEIGHT LIFTING", false, 60, Arrays.asList(10, 10, 10),
+            new Workout("WEIGHT LIFTING", false, 10, Arrays.asList(10, 10, 10),
                     "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
-                    Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")), // 3 sets x 10 reps
-            new Workout("CARDIO BLAST", true, 300, null,
+                    Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")),
+            new Workout("CARDIO BLAST", true, 10, null,
                     "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
-                    Arrays.asList("9bZkp7q19f0")), // 5 minutes duration
-            new Workout("PUSH UPS", false, 45, Arrays.asList(15, 15, 15),
+                    Arrays.asList("9bZkp7q19f0")),
+            new Workout("PUSH UPS", false, 10, Arrays.asList(15, 15, 15),
                     "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
-                    Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ")) // 3 sets x 15 reps
+                    Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ"))
     };
 
     private boolean isReceiverRegistered = false;
@@ -115,7 +113,6 @@ public class WorkoutActivity extends AppCompatActivity {
             isReceiverRegistered = true;
         }
 
-        // Initialize views
         workoutTitle = findViewById(R.id.workoutTitle);
         timerText = findViewById(R.id.timerText);
         playPauseButton = findViewById(R.id.playPauseButton);
@@ -125,6 +122,7 @@ public class WorkoutActivity extends AppCompatActivity {
         backFromWorkout = findViewById(R.id.backFromWorkout);
         youtubeModal = findViewById(R.id.youtubeModal);
         closeYoutubeButton = findViewById(R.id.closeYoutubeButton);
+        scrollContainer = findViewById(R.id.scrollContainer);
 
         showVideoButton.setOnClickListener(v -> {
             stopTimer();
@@ -158,19 +156,33 @@ public class WorkoutActivity extends AppCompatActivity {
                     .show();
         });
 
+        // Improved gesture detector for swipe up
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            private static final int SWIPE_THRESHOLD = 100;
+            private static final int SWIPE_VELOCITY_THRESHOLD = 100;
+
             @Override
-            public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-                if (distanceY > 50 && !isTransitioning) {
-                    moveToNextWorkout();
-                    return true;
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                float diffY = e2.getY() - e1.getY();
+                float diffX = e2.getX() - e1.getX();
+
+                if (Math.abs(diffY) > Math.abs(diffX)) {
+                    if (Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
+                        if (diffY < 0) {
+                            // Swipe up detected
+                            onSwipeUp();
+                            return true;
+                        }
+                    }
                 }
                 return false;
             }
         });
 
-        ScrollView scrollContainer = findViewById(R.id.scrollContainer);
-        scrollContainer.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
+        scrollContainer.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return false; // Allow scroll to continue
+        });
 
         playPauseButton.setOnClickListener(v -> {
             isRunning = !isRunning;
@@ -185,6 +197,20 @@ public class WorkoutActivity extends AppCompatActivity {
         });
 
         setupWorkout();
+    }
+
+    private void onSwipeUp() {
+        if (isTransitioning) return;
+
+        // Skip current workout (including all sets and rest periods)
+        Log.d("WorkoutActivity", "Swipe up detected - skipping workout");
+
+        stopTimer();
+        isResting = false;
+        currentSet = 1;
+        completedSets.clear();
+
+        moveToNextWorkout();
     }
 
     @Override
@@ -210,7 +236,6 @@ public class WorkoutActivity extends AppCompatActivity {
         completedSets.clear();
         isResting = false;
 
-        // Start foreground service
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workout.getTitle());
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, workout.getTime());
@@ -224,7 +249,6 @@ public class WorkoutActivity extends AppCompatActivity {
 
         updateTimerText();
 
-        // Show set info only for strength-based workouts
         if (!workout.isDurationBased() && workout.getRepsPerSet() != null) {
             setInfoText.setVisibility(View.VISIBLE);
             updateSetInfo();
@@ -232,8 +256,8 @@ public class WorkoutActivity extends AppCompatActivity {
             setInfoText.setVisibility(View.GONE);
         }
 
-        ScrollView scrollContainer = findViewById(R.id.scrollContainer);
-        scrollContainer.post(() -> scrollContainer.fullScroll(View.FOCUS_UP));
+        // Scroll to top smoothly
+        scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, 0));
 
         playPauseButton.setImageResource(R.drawable.pause);
         startTimer();
@@ -290,7 +314,7 @@ public class WorkoutActivity extends AppCompatActivity {
         Workout current = workouts[currentWorkoutIndex];
         playSoundEffect();
 
-        // For strength-based workouts
+        // For strength-based workouts (sets x reps)
         if (!current.isDurationBased() && current.getRepsPerSet() != null) {
             if (isResting) {
                 // Rest period done, start next set
@@ -299,20 +323,22 @@ public class WorkoutActivity extends AppCompatActivity {
                 timeLeft = current.getTime();
                 workoutTitle.setText(current.getTitle());
                 updateSetInfo();
+                updateServiceTimer();
                 startTimer();
             } else {
                 // Set completed
                 completedSets.add(currentSet);
 
                 if (currentSet < current.getRepsPerSet().size()) {
-                    // Start rest period before next set
+                    // Start rest period before next set (1 minute)
                     isResting = true;
-                    timeLeft = 60; // 1 minute rest
+                    timeLeft = 60; // 1 minute rest between sets
                     workoutTitle.setText("REST - " + current.getTitle());
                     setInfoText.setText("Rest before Set " + (currentSet + 1));
+                    updateServiceTimer();
                     startTimer();
                 } else {
-                    // All sets completed, move to next workout
+                    // All sets completed for this workout
                     sendWorkoutCompletedNotification();
                     moveToNextWorkout();
                 }
@@ -329,10 +355,11 @@ public class WorkoutActivity extends AppCompatActivity {
         isTransitioning = true;
 
         if (currentWorkoutIndex < workouts.length - 1) {
-            // Rest before next workout
+            // Start 1-minute rest before next workout
             isResting = true;
-            timeLeft = 60; // 1 minute rest
-            timerText.setText("Resting...");
+            timeLeft = 60; // 1 minute rest between workouts
+            timerText.setText("1:00");
+            workoutTitle.setText("REST");
             setInfoText.setText("Rest before next workout");
             setInfoText.setVisibility(View.VISIBLE);
 
@@ -345,7 +372,9 @@ public class WorkoutActivity extends AppCompatActivity {
                         updateServiceTimer();
                         timerHandler.postDelayed(this, 1000);
                     } else {
+                        // Rest done, move to next workout
                         currentWorkoutIndex++;
+                        isResting = false;
                         animateWorkoutTransition(() -> {
                             setupWorkout();
                             isTransitioning = false;
@@ -357,38 +386,134 @@ public class WorkoutActivity extends AppCompatActivity {
 
             timerHandler.postDelayed(timerRunnable, 1000);
         } else {
-            // All workouts completed - Update streak
+            // All workouts completed - Show celebration
             updateStreak();
             sendWorkoutCompletedNotification();
-
-            new AlertDialog.Builder(WorkoutActivity.this)
-                    .setTitle("Great Job! 🎉")
-                    .setMessage("You've completed all workouts for today! Your streak has been updated.")
-                    .setPositiveButton("OK", (dialog, which) -> {
-                        Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
-                        intent.putExtra("navigateTo", "home");
-                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
-                    })
-                    .setCancelable(false)
-                    .show();
-            isTransitioning = false;
+            showCelebrationAnimation();
         }
+    }
+
+    private void showCelebrationAnimation() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View celebrationView = getLayoutInflater().inflate(R.layout.dialog_celebration, null);
+        builder.setView(celebrationView);
+
+        AlertDialog dialog = builder.create();
+        dialog.setCancelable(false);
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        ImageView celebrationIcon = celebrationView.findViewById(R.id.celebrationIcon);
+        TextView celebrationTitle = celebrationView.findViewById(R.id.celebrationTitle);
+        TextView celebrationMessage = celebrationView.findViewById(R.id.celebrationMessage);
+        TextView streakInfo = celebrationView.findViewById(R.id.streakInfo);
+        Button btnContinue = celebrationView.findViewById(R.id.btnContinueToDashboard);
+
+        SharedPreferences prefs = getSharedPreferences("WorkoutPrefs", MODE_PRIVATE);
+        int currentStreak = prefs.getInt("currentStreak", 0);
+
+        streakInfo.setText("🔥 " + currentStreak + " Day Streak!");
+
+        String[] messages = {
+                "You're crushing it!",
+                "Outstanding effort!",
+                "You're on fire!",
+                "Keep up the amazing work!",
+                "You're unstoppable!",
+                "Incredible dedication!",
+                "You're a champion!"
+        };
+        int randomIndex = (int) (Math.random() * messages.length);
+        celebrationMessage.setText(messages[randomIndex]);
+
+        // Animate celebration icon
+        celebrationIcon.setScaleX(0f);
+        celebrationIcon.setScaleY(0f);
+        celebrationIcon.setAlpha(0f);
+        celebrationIcon.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(600)
+                .setInterpolator(new android.view.animation.OvershootInterpolator())
+                .start();
+
+        celebrationIcon.animate()
+                .rotation(360f)
+                .setDuration(800)
+                .start();
+
+        // Animate other elements
+        celebrationTitle.setAlpha(0f);
+        celebrationTitle.setTranslationY(-50f);
+        celebrationTitle.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(500)
+                .setStartDelay(200)
+                .start();
+
+        celebrationMessage.setAlpha(0f);
+        celebrationMessage.setTranslationY(-30f);
+        celebrationMessage.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(500)
+                .setStartDelay(400)
+                .start();
+
+        streakInfo.setAlpha(0f);
+        streakInfo.setScaleX(0.8f);
+        streakInfo.setScaleY(0.8f);
+        streakInfo.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(500)
+                .setStartDelay(600)
+                .start();
+
+        btnContinue.setAlpha(0f);
+        btnContinue.setTranslationY(50f);
+        btnContinue.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(500)
+                .setStartDelay(800)
+                .start();
+
+        try {
+            MediaPlayer celebrationSound = MediaPlayer.create(this, R.raw.ding);
+            celebrationSound.start();
+            celebrationSound.setOnCompletionListener(mp -> mp.release());
+        } catch (Exception e) {
+            Log.e("WorkoutActivity", "Error playing celebration sound", e);
+        }
+
+        btnContinue.setOnClickListener(v -> {
+            dialog.dismiss();
+            Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
+            intent.putExtra("navigateTo", "home");
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            finish();
+        });
+
+        dialog.show();
+        isTransitioning = false;
     }
 
     private void updateStreak() {
         SharedPreferences prefs = getSharedPreferences("WorkoutPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
 
-        // Get current date
         String today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().getTime());
         String lastWorkoutDate = prefs.getString("lastWorkoutDate", "");
         int currentStreak = prefs.getInt("currentStreak", 0);
 
-        // Check if workout already completed today
         if (!today.equals(lastWorkoutDate)) {
-            // Calculate if streak should continue
             Calendar lastDate = Calendar.getInstance();
             Calendar todayDate = Calendar.getInstance();
 
@@ -399,17 +524,14 @@ public class WorkoutActivity extends AppCompatActivity {
                     long diffInDays = diffInMillis / (1000 * 60 * 60 * 24);
 
                     if (diffInDays == 1) {
-                        // Consecutive day - increase streak
                         currentStreak++;
                     } else if (diffInDays > 1) {
-                        // Streak broken - reset to 1
                         currentStreak = 1;
                     }
                 } catch (Exception e) {
                     currentStreak = 1;
                 }
             } else {
-                // First workout
                 currentStreak = 1;
             }
 
@@ -452,7 +574,6 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void animateWorkoutTransition(final Runnable updateContent) {
         final LinearLayout centerBlock = findViewById(R.id.centerBlock);
-        final ScrollView scrollContainer = findViewById(R.id.scrollContainer);
 
         TranslateAnimation slideOut = new TranslateAnimation(0, 0, 0, -centerBlock.getHeight());
         slideOut.setDuration(300);
@@ -469,7 +590,7 @@ public class WorkoutActivity extends AppCompatActivity {
             @Override
             public void onAnimationEnd(Animation animation) {
                 updateContent.run();
-                scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, scrollContainer.getHeight()));
+                scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, 0));
                 centerBlock.startAnimation(slideIn);
             }
         });
@@ -528,7 +649,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private void sendWorkoutCompletedNotification() {
         String channelId = "workout_channel";
-        String currentDay = new java.text.SimpleDateFormat("EEEE", Locale.getDefault()).format(new java.util.Date());
+        String currentDay = new SimpleDateFormat("EEEE", Locale.getDefault()).format(new java.util.Date());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(

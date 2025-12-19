@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="32dp"
+    app:cardBackgroundColor="#1C1C1C"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:gravity="center">
+
+        <!-- Celebration Icon (Trophy/Star) -->
+        <ImageView
+            android:id="@+id/celebrationIcon"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@drawable/running"
+            android:background="@drawable/circle_yellow_bg"
+            android:padding="24dp"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Celebration Title -->
+        <TextView
+            android:id="@+id/celebrationTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Workout Complete! 🎉"
+            android:textColor="#FFD300"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Celebration Message -->
+        <TextView
+            android:id="@+id/celebrationMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="You're crushing it!"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Streak Information -->
+        <TextView
+            android:id="@+id/streakInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔥 5 Day Streak!"
+            android:textColor="#FF9800"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/streak_badge_bg"
+            android:padding="12dp"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Stats Summary (Optional) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/calories"
+                    app:tint="#FFD300"
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="350"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Calories"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/workout"
+                    app:tint="#FFD300"
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="3"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Exercises"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/heartrate"
+                    app:tint="#FFD300"
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="25"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Minutes"
+                    android:textColor="#AAAAAA"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Continue Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnContinueToDashboard"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:text="CONTINUE"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            app:backgroundTint="#FFD300"
+            app:cornerRadius="32dp"
+            app:iconPadding="12dp"/>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
