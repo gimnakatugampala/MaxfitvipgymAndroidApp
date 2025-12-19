@@ -49,11 +49,12 @@ public class HomeFragment extends Fragment {
         workoutScheduleContainer = view.findViewById(R.id.workout_schedule_container);
         MaterialButton startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
 
-        // --- STREAK FEATURE ---
-        CardView streakCard = view.findViewById(R.id.streakCard);
-        if (streakCard != null) {
-            streakCard.setOnClickListener(v -> showStreakDialog());
+        // --- NEW: Top Streak Badge Interaction ---
+        CardView streakBadge = view.findViewById(R.id.streakBadge);
+        if (streakBadge != null) {
+            streakBadge.setOnClickListener(v -> showStreakDialog());
         }
+        // -----------------------------------------
 
         startWorkoutButton.setOnClickListener(v -> showWorkoutStartDialog());
 
@@ -81,7 +82,6 @@ public class HomeFragment extends Fragment {
         builder.setView(dialogView);
 
         AlertDialog dialog = builder.create();
-        // Transparent background for rounded corners
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
@@ -91,15 +91,10 @@ public class HomeFragment extends Fragment {
         MaterialButton btnContinue = dialogView.findViewById(R.id.btnContinue);
         ImageView btnClose = dialogView.findViewById(R.id.btnClose);
 
-        // Setup the Multi-Month Calendar View
         setupStreakCalendar(recyclerView);
-
-        // Animate the flame icon
         animateStreakIcon(streakIcon);
 
-        // --- CLICK LISTENERS ---
         btnContinue.setOnClickListener(v -> dialog.dismiss());
-
         if (btnClose != null) {
             btnClose.setOnClickListener(v -> dialog.dismiss());
         }
@@ -110,62 +105,50 @@ public class HomeFragment extends Fragment {
     private void setupStreakCalendar(RecyclerView recyclerView) {
         List<MonthModel> monthList = new ArrayList<>();
 
-        // 1. Define Start Date (e.g., User joined 5 months ago)
+        // Start Date: 5 months ago
         Calendar startCal = Calendar.getInstance();
         startCal.add(Calendar.MONTH, -5);
         startCal.set(Calendar.DAY_OF_MONTH, 1);
 
-        // 2. Define End Date (Today)
         Calendar endCal = Calendar.getInstance();
-
-        // 3. Clone startCal to use as an iterator
         Calendar iteratorCal = (Calendar) startCal.clone();
-
         Random random = new Random();
 
-        // 4. Iterate Month by Month
+        // Loop through months
         while (iteratorCal.before(endCal) ||
                 (iteratorCal.get(Calendar.MONTH) == endCal.get(Calendar.MONTH) &&
                         iteratorCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR))) {
 
             List<DateModel> daysInMonth = new ArrayList<>();
             String monthName = new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(iteratorCal.getTime());
-
             int maxDays = iteratorCal.getActualMaximum(Calendar.DAY_OF_MONTH);
 
-            // Determine start day of week
             iteratorCal.set(Calendar.DAY_OF_MONTH, 1);
             int startDayOfWeek = iteratorCal.get(Calendar.DAY_OF_WEEK);
 
-            // Add Empty Spacers
+            // Spacers
             for (int i = 1; i < startDayOfWeek; i++) {
                 daysInMonth.add(new DateModel("", "", false, true));
             }
 
-            // Generate days
+            // Days
             for (int day = 1; day <= maxDays; day++) {
                 Calendar currentDay = (Calendar) iteratorCal.clone();
                 currentDay.set(Calendar.DAY_OF_MONTH, day);
-
                 boolean isFuture = currentDay.after(endCal);
-                // MOCK LOGIC: Randomly mark past days as "Attended"
                 boolean attended = !isFuture && random.nextBoolean();
 
                 daysInMonth.add(new DateModel("", String.valueOf(day), attended, isFuture));
             }
 
             monthList.add(new MonthModel(monthName, daysInMonth));
-
-            // Move to next month
             iteratorCal.add(Calendar.MONTH, 1);
         }
 
-        // 5. Setup Main Adapter
         CalendarMonthAdapter adapter = new CalendarMonthAdapter(getContext(), monthList);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
 
-        // Auto-scroll to the bottom
         if (monthList.size() > 0) {
             recyclerView.scrollToPosition(monthList.size() - 1);
         }
@@ -187,7 +170,7 @@ public class HomeFragment extends Fragment {
         view.animate().rotation(0f).setDuration(600).start();
     }
 
-    // --- EXISTING METRICS & WORKOUT CODE ---
+    // --- METRICS & WORKOUT METHODS ---
 
     private void addMetric(String title, String value, String unit, int iconRes) {
         CardView card = new CardView(getContext());
