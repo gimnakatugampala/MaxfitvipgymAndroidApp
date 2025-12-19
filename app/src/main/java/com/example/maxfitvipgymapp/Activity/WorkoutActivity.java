@@ -433,7 +433,6 @@ public class WorkoutActivity extends AppCompatActivity {
         setInfoText.setText(builder.toString().trim());
     }
 
-
     private void playSoundEffect() {
         if (mediaPlayer != null) {
             mediaPlayer.release();
