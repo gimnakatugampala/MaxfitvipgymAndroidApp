@@ -200,17 +200,22 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void onSwipeUp() {
-        if (isTransitioning) return;
+        // Only block swipe if we are in the actual slide animation phase (transitioning) AND not in the rest countdown phase.
+        // This allows the user to swipe to skip the "Rest before next workout" timer.
+        if (isTransitioning && !isResting) return;
 
-        // Skip current workout (including all sets and rest periods)
-        Log.d("WorkoutActivity", "Swipe up detected - skipping workout");
+        Log.d("WorkoutActivity", "Swipe up detected - Skipping current timer/rest");
 
+        // Stop the current timer
         stopTimer();
-        isResting = false;
-        currentSet = 1;
-        completedSets.clear();
 
-        moveToNextWorkout();
+        // Force the timer to zero
+        timeLeft = 0;
+
+        // Immediately trigger the timer logic (which will handle the 'else { completed }' block)
+        if (timerRunnable != null) {
+            timerRunnable.run();
+        }
     }
 
     @Override
