@@ -14,11 +14,9 @@
         android:id="@+id/home_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:layout_marginTop="40dp">
+        android:orientation="vertical"
+        android:layout_marginTop="40dp">
 
-
-        <!-- Welcome Text -->
         <TextView
             android:id="@+id/home_title"
             android:layout_width="wrap_content"
@@ -29,13 +27,16 @@
             android:textStyle="bold"
             android:layout_marginBottom="20dp" />
 
-        <!-- Running Streak Card -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/streakCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="20dp"
             app:cardCornerRadius="10dp"
             app:cardElevation="6dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
             app:cardBackgroundColor="#212121">
 
             <LinearLayout
@@ -91,7 +92,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Health Metrics Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -101,7 +101,6 @@
             android:textStyle="bold"
             android:layout_marginBottom="10dp" />
 
-        <!-- Health Metrics Scroll -->
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -117,7 +116,6 @@
                 android:paddingEnd="10dp" />
         </HorizontalScrollView>
 
-        <!-- Workout Schedule Title -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
