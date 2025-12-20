@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,6 +28,7 @@ import com.example.maxfitvipgymapp.Model.DateModel;
 import com.example.maxfitvipgymapp.Model.Member;
 import com.example.maxfitvipgymapp.Model.MonthModel;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Repository.WorkoutRepository;
 import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
 import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
@@ -34,17 +36,35 @@ import com.google.android.material.button.MaterialButton;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class HomeFragment extends Fragment {
+
+    private static final String TAG = "HomeFragment";
 
     private LinearLayout metricsContainer;
     private LinearLayout workoutScheduleContainer;
     private SessionManager sessionManager;
     private TextView homeTitle;
+    private WorkoutRepository workoutRepository;
+    private ExecutorService executorService;
+    private MaterialButton startWorkoutButton;
+
+    // ✅ Store schedule data for showing workout details
+    private int currentMemberScheduleId = -1;
+    private Map<String, List<Map<String, Object>>> weekWorkoutsMap = new HashMap<>();
+    private boolean hasActiveSchedule = false;
+
+    // Day name mapping
+    private static final String[] DAYS = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+    private static final String[] DAY_ABBR = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 
     public HomeFragment() {}
 
@@ -53,25 +73,25 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // ✅ Initialize SessionManager
+        // Initialize
         sessionManager = new SessionManager(getContext());
+        workoutRepository = new WorkoutRepository();
+        executorService = Executors.newSingleThreadExecutor();
 
         metricsContainer = view.findViewById(R.id.metrics_container);
         workoutScheduleContainer = view.findViewById(R.id.workout_schedule_container);
         homeTitle = view.findViewById(R.id.home_title);
-        MaterialButton startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
+        startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
 
-        // ✅ Set personalized welcome message
+        // Set personalized welcome message
         setWelcomeMessage();
 
         // Update streak badge with current streak
         CardView streakBadge = view.findViewById(R.id.streakBadge);
         if (streakBadge != null) {
-            // Get current streak from SharedPreferences
             SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
             int currentStreak = prefs.getInt("currentStreak", 0);
 
-            // Update the streak number in the badge
             TextView streakText = view.findViewById(R.id.streakNumber);
             if (streakText != null) {
                 streakText.setText(String.valueOf(currentStreak));
@@ -80,43 +100,200 @@ public class HomeFragment extends Fragment {
             streakBadge.setOnClickListener(v -> showStreakDialog());
         }
 
+        // ✅ Workout button will be enabled/disabled based on schedule availability
         startWorkoutButton.setOnClickListener(v -> showWorkoutStartDialog());
 
-        // ✅ NEW: Add small mic icon in header
+        // Add mic icon in header
         addMicIconToHeader(view);
 
-        // Add Data
+        // Add health metrics
         addMetric("Blood Pressure", "120/80", "mmHg", R.drawable.heartrate);
         addMetric("Heart Rate", "75", "bpm", R.drawable.heart);
         addMetric("Calories Burned", "450", "kcal", R.drawable.calories);
         addMetric("Steps Taken", "10,000", "steps", R.drawable.running);
 
-        addWorkout("Mon", "2 Workouts", "Total: 85 min");
-        addWorkout("Tue", "2 Workouts", "Total: 75 min");
-        addWorkout("Wed", "Rest Day", null, true);
-        addWorkout("Thu", "2 Workouts", "Total: 95 min");
-        addWorkout("Fri", "2 Workouts", "Total: 90 min");
-        addWorkout("Sat", "2 Workouts", "Total: 90 min");
-        addWorkout("Sun", "Rest Day", null, true);
+        // ✅ Load workout schedule from database
+        loadWorkoutScheduleFromDB();
 
         return view;
     }
 
-    // ✅ UPDATED METHOD: Add microphone icon to header
+    // ✅ Load workout schedule from database
+    private void loadWorkoutScheduleFromDB() {
+        int memberId = sessionManager.getMemberId();
+
+        if (memberId == -1) {
+            Log.e(TAG, "Member ID not found in session");
+            showEmptySchedule();
+            disableWorkoutButton();
+            return;
+        }
+
+        // Show loading state
+        workoutScheduleContainer.removeAllViews();
+        ProgressBar progressBar = new ProgressBar(getContext());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.gravity = Gravity.CENTER;
+        params.setMargins(0, 40, 0, 40);
+        progressBar.setLayoutParams(params);
+        workoutScheduleContainer.addView(progressBar);
+
+        executorService.execute(() -> {
+            try {
+                // Get member's current active workout schedule
+                Map<String, Object> memberSchedule = workoutRepository.getMemberWorkoutSchedule(memberId);
+
+                if (memberSchedule == null) {
+                    Log.d(TAG, "No active workout schedule found for member");
+                    getActivity().runOnUiThread(() -> {
+                        showEmptySchedule();
+                        disableWorkoutButton();
+                    });
+                    return;
+                }
+
+                currentMemberScheduleId = (int) memberSchedule.get("id");
+                hasActiveSchedule = true;
+                Log.d(TAG, "Found active schedule ID: " + currentMemberScheduleId);
+
+                // Build schedule for each day of the week
+                List<DaySchedule> weekSchedule = new ArrayList<>();
+                weekWorkoutsMap.clear();
+
+                for (int i = 0; i < 7; i++) {
+                    String dayName = DAYS[i];
+                    String dayAbbr = DAY_ABBR[i];
+
+                    // Get workouts for this day
+                    List<Map<String, Object>> dayWorkouts =
+                            workoutRepository.getMemberWorkoutScheduleDetails(currentMemberScheduleId, dayName);
+
+                    // ✅ Store workouts for this day
+                    weekWorkoutsMap.put(dayAbbr, dayWorkouts);
+
+                    // Check if it's a rest day
+                    boolean isRestDay = false;
+                    int totalDuration = 0;
+                    int workoutCount = 0;
+
+                    if (dayWorkouts != null && !dayWorkouts.isEmpty()) {
+                        for (Map<String, Object> workout : dayWorkouts) {
+                            Boolean restDay = (Boolean) workout.get("is_rest_day");
+                            if (restDay != null && restDay) {
+                                isRestDay = true;
+                                break;
+                            }
+
+                            // Calculate total duration
+                            String durationStr = (String) workout.get("duration_minutes");
+                            if (durationStr != null && !durationStr.isEmpty()) {
+                                try {
+                                    totalDuration += Integer.parseInt(durationStr);
+                                } catch (NumberFormatException e) {
+                                    Log.w(TAG, "Invalid duration: " + durationStr);
+                                }
+                            }
+                            workoutCount++;
+                        }
+                    } else {
+                        // No workouts assigned = rest day
+                        isRestDay = true;
+                    }
+
+                    weekSchedule.add(new DaySchedule(dayAbbr, workoutCount, totalDuration, isRestDay));
+                }
+
+                // Update UI on main thread
+                getActivity().runOnUiThread(() -> {
+                    workoutScheduleContainer.removeAllViews();
+                    for (DaySchedule day : weekSchedule) {
+                        if (day.isRestDay) {
+                            addWorkout(day.dayName, "Rest Day", null, true);
+                        } else if (day.workoutCount > 0) {
+                            String summary = day.workoutCount + (day.workoutCount == 1 ? " Workout" : " Workouts");
+                            String total = "Total: " + day.totalDuration + " min";
+                            addWorkout(day.dayName, summary, total, false);
+                        } else {
+                            addWorkout(day.dayName, "No Workouts", null, true);
+                        }
+                    }
+
+                    // ✅ Enable workout button since schedule exists
+                    enableWorkoutButton();
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading workout schedule", e);
+                getActivity().runOnUiThread(() -> {
+                    showEmptySchedule();
+                    disableWorkoutButton();
+                });
+            }
+        });
+    }
+
+    // ✅ NEW: Enable workout button
+    private void enableWorkoutButton() {
+        if (startWorkoutButton != null && getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                startWorkoutButton.setEnabled(true);
+                startWorkoutButton.setAlpha(1.0f);
+            });
+        }
+    }
+
+    // ✅ NEW: Disable workout button
+    private void disableWorkoutButton() {
+        if (startWorkoutButton != null && getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                startWorkoutButton.setEnabled(false);
+                startWorkoutButton.setAlpha(0.5f);
+            });
+        }
+    }
+
+    // Helper class to hold day schedule data
+    private static class DaySchedule {
+        String dayName;
+        int workoutCount;
+        int totalDuration;
+        boolean isRestDay;
+
+        DaySchedule(String dayName, int workoutCount, int totalDuration, boolean isRestDay) {
+            this.dayName = dayName;
+            this.workoutCount = workoutCount;
+            this.totalDuration = totalDuration;
+            this.isRestDay = isRestDay;
+        }
+    }
+
+    // Show empty schedule message
+    private void showEmptySchedule() {
+        workoutScheduleContainer.removeAllViews();
+
+        TextView emptyText = new TextView(getContext());
+        emptyText.setText("No workout schedule assigned yet.\nContact your trainer to get started!");
+        emptyText.setTextColor(Color.parseColor("#AAAAAA"));
+        emptyText.setTextSize(16);
+        emptyText.setGravity(Gravity.CENTER);
+        emptyText.setPadding(32, 64, 32, 64);
+
+        workoutScheduleContainer.addView(emptyText);
+    }
+
     private void addMicIconToHeader(View view) {
-        // Find the home container
         LinearLayout homeContainer = view.findViewById(R.id.home_container);
         if (homeContainer == null || homeContainer.getChildCount() == 0) return;
 
-        // Get the first child (header layout with title and streak badge)
         View firstChild = homeContainer.getChildAt(0);
         if (!(firstChild instanceof LinearLayout)) return;
 
         LinearLayout headerLayout = (LinearLayout) firstChild;
 
-        // Create mic icon button
         ImageView micIcon = new ImageView(getContext());
-        // ✅ CHANGED: Made icon smaller (24dp instead of 36dp)
         int iconSize = (int) (24 * getResources().getDisplayMetrics().density);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(iconSize, iconSize);
         params.setMargins(
@@ -127,13 +304,9 @@ public class HomeFragment extends Fragment {
         );
         micIcon.setLayoutParams(params);
 
-        // Set icon and style
         micIcon.setImageResource(R.drawable.mic);
-        // micIcon.setColorFilter(Color.parseColor("#FFD300"));
-        micIcon.setPadding(4, 4, 4, 4); // ✅ Reduced padding for smaller icon
-        // micIcon.setBackground(ContextCompat.getDrawable(getContext(), R.drawable.circle_background));
+        micIcon.setPadding(4, 4, 4, 4);
 
-        // Make it clickable
         micIcon.setClickable(true);
         micIcon.setFocusable(true);
         micIcon.setOnClickListener(v -> {
@@ -141,11 +314,9 @@ public class HomeFragment extends Fragment {
             startActivity(intent);
         });
 
-        // Add ripple effect
         micIcon.setForeground(ContextCompat.getDrawable(getContext(),
                 android.R.drawable.list_selector_background));
 
-        // Insert before the streak badge (which is the last child)
         int insertPosition = headerLayout.getChildCount() - 1;
         if (insertPosition >= 0) {
             headerLayout.addView(micIcon, insertPosition);
@@ -154,7 +325,6 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    // ✅ Set personalized welcome message
     private void setWelcomeMessage() {
         if (homeTitle != null) {
             Member member = sessionManager.getMemberData();
@@ -169,10 +339,9 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Update streak when fragment resumes
         updateStreakDisplay();
-        // ✅ Update welcome message when fragment resumes
         setWelcomeMessage();
+        loadWorkoutScheduleFromDB();
     }
 
     private void updateStreakDisplay() {
@@ -181,13 +350,11 @@ public class HomeFragment extends Fragment {
             SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
             int currentStreak = prefs.getInt("currentStreak", 0);
 
-            // Update streak badge
             TextView streakNumber = view.findViewById(R.id.streakNumber);
             if (streakNumber != null) {
                 streakNumber.setText(String.valueOf(currentStreak));
             }
 
-            // Update streak card
             updateStreakCard(currentStreak);
         }
     }
@@ -218,7 +385,6 @@ public class HomeFragment extends Fragment {
         MaterialButton btnContinue = dialogView.findViewById(R.id.btnContinue);
         ImageView btnClose = dialogView.findViewById(R.id.btnClose);
 
-        // Update dialog title with current streak
         SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
         int currentStreak = prefs.getInt("currentStreak", 0);
 
@@ -241,12 +407,10 @@ public class HomeFragment extends Fragment {
     private void setupStreakCalendar(RecyclerView recyclerView) {
         List<MonthModel> monthList = new ArrayList<>();
 
-        // Get workout history from SharedPreferences
         SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
         String lastWorkoutDate = prefs.getString("lastWorkoutDate", "");
         int currentStreak = prefs.getInt("currentStreak", 0);
 
-        // Create a set of completed workout dates
         Set<String> completedDates = new HashSet<>();
         if (!lastWorkoutDate.isEmpty() && currentStreak > 0) {
             Calendar cal = Calendar.getInstance();
@@ -254,7 +418,6 @@ public class HomeFragment extends Fragment {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
                 cal.setTime(sdf.parse(lastWorkoutDate));
 
-                // Add all dates in the current streak
                 for (int i = 0; i < currentStreak; i++) {
                     completedDates.add(sdf.format(cal.getTime()));
                     cal.add(Calendar.DAY_OF_MONTH, -1);
@@ -264,7 +427,6 @@ public class HomeFragment extends Fragment {
             }
         }
 
-        // Start Date: 5 months ago
         Calendar startCal = Calendar.getInstance();
         startCal.add(Calendar.MONTH, -5);
         startCal.set(Calendar.DAY_OF_MONTH, 1);
@@ -273,7 +435,6 @@ public class HomeFragment extends Fragment {
         Calendar iteratorCal = (Calendar) startCal.clone();
         SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
-        // Loop through months
         while (iteratorCal.before(endCal) ||
                 (iteratorCal.get(Calendar.MONTH) == endCal.get(Calendar.MONTH) &&
                         iteratorCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR))) {
@@ -285,18 +446,15 @@ public class HomeFragment extends Fragment {
             iteratorCal.set(Calendar.DAY_OF_MONTH, 1);
             int startDayOfWeek = iteratorCal.get(Calendar.DAY_OF_WEEK);
 
-            // Spacers
             for (int i = 1; i < startDayOfWeek; i++) {
                 daysInMonth.add(new DateModel("", "", false, true));
             }
 
-            // Days
             for (int day = 1; day <= maxDays; day++) {
                 Calendar currentDay = (Calendar) iteratorCal.clone();
                 currentDay.set(Calendar.DAY_OF_MONTH, day);
                 boolean isFuture = currentDay.after(endCal);
 
-                // Check if this date is in completed dates
                 String dateString = dateFormatter.format(currentDay.getTime());
                 boolean attended = completedDates.contains(dateString);
 
@@ -331,8 +489,6 @@ public class HomeFragment extends Fragment {
         view.setRotation(-15f);
         view.animate().rotation(0f).setDuration(600).start();
     }
-
-    // --- METRICS & WORKOUT METHODS ---
 
     private void addMetric(String title, String value, String unit, int iconRes) {
         CardView card = new CardView(getContext());
@@ -420,37 +576,70 @@ public class HomeFragment extends Fragment {
         card.setOnClickListener(v -> showWorkoutDialog(day, isRestDay));
     }
 
+    // ✅ UPDATED: Show actual workouts from database
     private void showWorkoutDialog(String day, boolean isRestDay) {
         if (isRestDay) {
             Toast.makeText(getContext(), day + " is a rest day. Take it easy and recharge!", Toast.LENGTH_LONG).show();
             return;
         }
+
+        // Get workouts for this day from stored map
+        List<Map<String, Object>> dayWorkouts = weekWorkoutsMap.get(day);
+
+        if (dayWorkouts == null || dayWorkouts.isEmpty()) {
+            Toast.makeText(getContext(), "No workout details available for " + day, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         LayoutInflater inflater = LayoutInflater.from(getContext());
         View dialogView = inflater.inflate(R.layout.dialog_workout_details, null);
         TextView title = dialogView.findViewById(R.id.dialog_title);
         title.setText(day + " - Workouts");
         LinearLayout contentContainer = dialogView.findViewById(R.id.dialog_content_container);
-        String[] workouts = new String[]{"Warm-up (10 min)", "Cardio (30 min)", "Strength Training (25 min)", "Cool-down (10 min)"};
-        int[] icons = new int[]{R.drawable.warmup, R.drawable.heartrate, R.drawable.strength, R.drawable.cooldown};
-        for (int i = 0; i < workouts.length; i++) {
+
+        // ✅ Display actual workouts from database
+        for (Map<String, Object> workout : dayWorkouts) {
+            String workoutName = (String) workout.get("name");
+            String sets = (String) workout.get("set_no");
+            String reps = (String) workout.get("rep_no");
+            String duration = (String) workout.get("duration_minutes");
+
+            if (workoutName == null) workoutName = "Workout";
+
+            // Build workout details text
+            StringBuilder details = new StringBuilder(workoutName);
+            if (sets != null && !sets.isEmpty()) {
+                details.append(" - ").append(sets).append(" sets");
+            }
+            if (reps != null && !reps.isEmpty()) {
+                details.append(" × ").append(reps).append(" reps");
+            }
+            if (duration != null && !duration.isEmpty()) {
+                details.append(" (").append(duration).append(" min)");
+            }
+
             LinearLayout row = new LinearLayout(getContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setPadding(0, 16, 0, 16);
             row.setGravity(Gravity.CENTER_VERTICAL);
+
             ImageView icon = new ImageView(getContext());
             LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(60, 60);
             iconParams.setMarginEnd(20);
             icon.setLayoutParams(iconParams);
-            icon.setImageResource(icons[i]);
+            icon.setImageResource(R.drawable.workout);
             icon.setColorFilter(Color.YELLOW);
+
             TextView workoutText = new TextView(getContext());
-            workoutText.setText(workouts[i]);
+            workoutText.setText(details.toString());
             workoutText.setTextColor(Color.WHITE);
             workoutText.setTextSize(17);
+
             row.addView(icon);
             row.addView(workoutText);
             contentContainer.addView(row);
         }
+
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext(), R.style.CustomDialogTheme);
         builder.setView(dialogView);
         builder.setPositiveButton("Close", (dialog, which) -> dialog.dismiss());
@@ -458,11 +647,15 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
-    private void addWorkout(String day, String summary, String total) {
-        addWorkout(day, summary, total, false);
-    }
-
+    // ✅ UPDATED: Check if schedule exists before starting
     private void showWorkoutStartDialog() {
+        if (!hasActiveSchedule) {
+            Toast.makeText(getContext(),
+                    "No workout schedule assigned.\nPlease contact your trainer.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("Start Workout");
         builder.setMessage("Are you ready to begin your workout?");
@@ -476,5 +669,13 @@ public class HomeFragment extends Fragment {
         });
         builder.setNegativeButton("Cancel", null);
         builder.show();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdown();
+        }
     }
 }
