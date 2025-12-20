@@ -1,14 +1,22 @@
 package com.example.maxfitvipgymapp.Fragments;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.GridLayout;
+import android.widget.TextView;
+
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 
+import com.example.maxfitvipgymapp.Activity.GetStartedActivity;
+import com.example.maxfitvipgymapp.Model.Member;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.Description;
 import com.github.mikephil.charting.components.XAxis;
@@ -21,6 +29,11 @@ import java.util.ArrayList;
 
 public class ProfileFragment extends Fragment {
 
+    private SessionManager sessionManager;
+    private TextView userName;
+    private TextView userLocation;
+    private TextView joinDate;
+
     public ProfileFragment() {
         // Required empty public constructor
     }
@@ -29,6 +42,20 @@ public class ProfileFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_profile, container, false);
+
+        // ✅ Initialize SessionManager
+        sessionManager = new SessionManager(getContext());
+
+        // ✅ Get view references
+        userName = view.findViewById(R.id.user_name);
+        userLocation = view.findViewById(R.id.user_location);
+        joinDate = view.findViewById(R.id.join_date);
+
+        // ✅ Load user data
+        loadUserData();
+
+        // ✅ Add Logout Button
+        addLogoutButton(view);
 
         // Setup training log grid
         GridLayout trainingLogGrid = view.findViewById(R.id.training_log_grid);
@@ -113,8 +140,6 @@ public class ProfileFragment extends Fragment {
             }
         });
 
-
-
         Description desc = new Description();
         desc.setText("");
         chart.setDescription(desc);
@@ -123,6 +148,100 @@ public class ProfileFragment extends Fragment {
         chart.invalidate(); // Refresh chart
 
         return view;
+    }
+
+    // ✅ NEW METHOD: Load user data from session
+    private void loadUserData() {
+        Member member = sessionManager.getMemberData();
+        if (member != null) {
+            // Set user name
+            if (userName != null) {
+                userName.setText(member.getFullName());
+            }
+
+            // Set membership ID or phone
+            if (userLocation != null) {
+                String membershipId = member.getMembershipId();
+                if (membershipId != null && !membershipId.isEmpty()) {
+                    userLocation.setText("📋 Member ID: " + membershipId);
+                } else {
+                    userLocation.setText("📞 " + member.getPhoneNumber());
+                }
+            }
+
+            // Set join date
+            if (joinDate != null && member.getCreatedDate() != null) {
+                String createdDate = member.getCreatedDate();
+                if (!createdDate.isEmpty()) {
+                    // Format: "2024-12-20T10:30:00+00:00" -> "Joined Dec 20"
+                    try {
+                        String[] parts = createdDate.split("T")[0].split("-");
+                        if (parts.length >= 3) {
+                            String[] months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                            int month = Integer.parseInt(parts[1]) - 1;
+                            String day = parts[2];
+                            joinDate.setText("🕒 Joined " + day + " " + months[month]);
+                        }
+                    } catch (Exception e) {
+                        joinDate.setText("🕒 Member");
+                    }
+                } else {
+                    joinDate.setText("🕒 Member");
+                }
+            }
+        }
+    }
+
+    // ✅ NEW METHOD: Add logout button to profile
+    private void addLogoutButton(View view) {
+        // Find the parent layout (you may need to adjust this based on your layout)
+        ViewGroup parentLayout = view.findViewById(R.id.profile_stats_grid);
+        if (parentLayout != null && parentLayout.getParent() instanceof ViewGroup) {
+            ViewGroup mainLayout = (ViewGroup) parentLayout.getParent();
+
+            // Create logout button
+            Button logoutButton = new Button(getContext());
+            logoutButton.setText("LOGOUT");
+            logoutButton.setBackgroundColor(Color.parseColor("#FF5252"));
+            logoutButton.setTextColor(Color.WHITE);
+            logoutButton.setAllCaps(true);
+            logoutButton.setTextSize(16);
+            logoutButton.setPadding(32, 24, 32, 24);
+
+            // Set layout params
+            ViewGroup.MarginLayoutParams params = new ViewGroup.MarginLayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(32, 32, 32, 64);
+            logoutButton.setLayoutParams(params);
+
+            // Add click listener
+            logoutButton.setOnClickListener(v -> showLogoutConfirmation());
+
+            // Add button to layout
+            mainLayout.addView(logoutButton);
+        }
+    }
+
+    // ✅ NEW METHOD: Show logout confirmation dialog
+    private void showLogoutConfirmation() {
+        new AlertDialog.Builder(getContext())
+                .setTitle("Logout")
+                .setMessage("Are you sure you want to logout?")
+                .setPositiveButton("Yes", (dialog, which) -> {
+                    // Clear session
+                    sessionManager.logout();
+
+                    // Redirect to login screen
+                    Intent intent = new Intent(getActivity(), GetStartedActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    getActivity().finish();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     // Convert dp to pixels

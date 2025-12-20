@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Check if user is logged in
+        // ✅ Check if user is logged in - MOVED TO TOP
         sessionManager = new SessionManager(this);
         if (!sessionManager.isLoggedIn()) {
             // Redirect to login
@@ -153,12 +153,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Check session is still valid
+        // ✅ Check session is still valid
         if (!sessionManager.isLoggedIn()) {
             Intent intent = new Intent(this, GetStartedActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
-            finish();
             finish();
         }
     }

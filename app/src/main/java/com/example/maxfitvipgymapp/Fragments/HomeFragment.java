@@ -23,9 +23,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.Adapter.CalendarMonthAdapter;
 import com.example.maxfitvipgymapp.Model.DateModel;
+import com.example.maxfitvipgymapp.Model.Member;
 import com.example.maxfitvipgymapp.Model.MonthModel;
 import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
+import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
 
 import java.text.SimpleDateFormat;
@@ -40,6 +42,8 @@ public class HomeFragment extends Fragment {
 
     private LinearLayout metricsContainer;
     private LinearLayout workoutScheduleContainer;
+    private SessionManager sessionManager;
+    private TextView homeTitle;
 
     public HomeFragment() {}
 
@@ -48,9 +52,16 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
+        // ✅ Initialize SessionManager
+        sessionManager = new SessionManager(getContext());
+
         metricsContainer = view.findViewById(R.id.metrics_container);
         workoutScheduleContainer = view.findViewById(R.id.workout_schedule_container);
+        homeTitle = view.findViewById(R.id.home_title);
         MaterialButton startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
+
+        // ✅ Set personalized welcome message
+        setWelcomeMessage();
 
         // Update streak badge with current streak
         CardView streakBadge = view.findViewById(R.id.streakBadge);
@@ -87,11 +98,25 @@ public class HomeFragment extends Fragment {
         return view;
     }
 
+    // ✅ NEW METHOD: Set personalized welcome message
+    private void setWelcomeMessage() {
+        if (homeTitle != null) {
+            Member member = sessionManager.getMemberData();
+            if (member != null && member.getFirstName() != null && !member.getFirstName().isEmpty()) {
+                homeTitle.setText("Welcome Back, " + member.getFirstName() + "! 👋");
+            } else {
+                homeTitle.setText("Welcome Back! 👋");
+            }
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
         // Update streak when fragment resumes
         updateStreakDisplay();
+        // ✅ Update welcome message when fragment resumes
+        setWelcomeMessage();
     }
 
     private void updateStreakDisplay() {
