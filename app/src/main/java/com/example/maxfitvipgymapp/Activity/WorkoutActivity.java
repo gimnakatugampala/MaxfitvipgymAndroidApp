@@ -3,7 +3,9 @@ package com.example.maxfitvipgymapp.Activity;
 import android.app.AlertDialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.appwidget.AppWidgetManager;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -39,6 +41,7 @@ import com.bumptech.glide.Glide;
 import com.example.maxfitvipgymapp.Adapter.YouTubeAdapter;
 import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
+import com.example.maxfitvipgymapp.Widget.WorkoutWidgetProvider;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -156,7 +159,6 @@ public class WorkoutActivity extends AppCompatActivity {
                     .show();
         });
 
-        // Improved gesture detector for swipe up
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             private static final int SWIPE_THRESHOLD = 100;
             private static final int SWIPE_VELOCITY_THRESHOLD = 100;
@@ -169,7 +171,6 @@ public class WorkoutActivity extends AppCompatActivity {
                 if (Math.abs(diffY) > Math.abs(diffX)) {
                     if (Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
                         if (diffY < 0) {
-                            // Swipe up detected
                             onSwipeUp();
                             return true;
                         }
@@ -181,7 +182,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
         scrollContainer.setOnTouchListener((v, event) -> {
             gestureDetector.onTouchEvent(event);
-            return false; // Allow scroll to continue
+            return false;
         });
 
         playPauseButton.setOnClickListener(v -> {
@@ -200,19 +201,13 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void onSwipeUp() {
-        // Only block swipe if we are in the actual slide animation phase (transitioning) AND not in the rest countdown phase.
-        // This allows the user to swipe to skip the "Rest before next workout" timer.
         if (isTransitioning && !isResting) return;
 
         Log.d("WorkoutActivity", "Swipe up detected - Skipping current timer/rest");
 
-        // Stop the current timer
         stopTimer();
-
-        // Force the timer to zero
         timeLeft = 0;
 
-        // Immediately trigger the timer logic (which will handle the 'else { completed }' block)
         if (timerRunnable != null) {
             timerRunnable.run();
         }
@@ -261,7 +256,6 @@ public class WorkoutActivity extends AppCompatActivity {
             setInfoText.setVisibility(View.GONE);
         }
 
-        // Scroll to top smoothly
         scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, 0));
 
         playPauseButton.setImageResource(R.drawable.pause);
@@ -319,10 +313,8 @@ public class WorkoutActivity extends AppCompatActivity {
         Workout current = workouts[currentWorkoutIndex];
         playSoundEffect();
 
-        // For strength-based workouts (sets x reps)
         if (!current.isDurationBased() && current.getRepsPerSet() != null) {
             if (isResting) {
-                // Rest period done, start next set
                 isResting = false;
                 currentSet++;
                 timeLeft = current.getTime();
@@ -331,25 +323,21 @@ public class WorkoutActivity extends AppCompatActivity {
                 updateServiceTimer();
                 startTimer();
             } else {
-                // Set completed
                 completedSets.add(currentSet);
 
                 if (currentSet < current.getRepsPerSet().size()) {
-                    // Start rest period before next set (1 minute)
                     isResting = true;
-                    timeLeft = 60; // 1 minute rest between sets
+                    timeLeft = 60;
                     workoutTitle.setText("REST - " + current.getTitle());
                     setInfoText.setText("Rest before Set " + (currentSet + 1));
                     updateServiceTimer();
                     startTimer();
                 } else {
-                    // All sets completed for this workout
                     sendWorkoutCompletedNotification();
                     moveToNextWorkout();
                 }
             }
         } else {
-            // Duration-based workout completed
             sendWorkoutCompletedNotification();
             moveToNextWorkout();
         }
@@ -360,9 +348,8 @@ public class WorkoutActivity extends AppCompatActivity {
         isTransitioning = true;
 
         if (currentWorkoutIndex < workouts.length - 1) {
-            // Start 1-minute rest before next workout
             isResting = true;
-            timeLeft = 60; // 1 minute rest between workouts
+            timeLeft = 60;
             timerText.setText("1:00");
             workoutTitle.setText("REST");
             setInfoText.setText("Rest before next workout");
@@ -377,7 +364,6 @@ public class WorkoutActivity extends AppCompatActivity {
                         updateServiceTimer();
                         timerHandler.postDelayed(this, 1000);
                     } else {
-                        // Rest done, move to next workout
                         currentWorkoutIndex++;
                         isResting = false;
                         animateWorkoutTransition(() -> {
@@ -391,8 +377,9 @@ public class WorkoutActivity extends AppCompatActivity {
 
             timerHandler.postDelayed(timerRunnable, 1000);
         } else {
-            // All workouts completed - Show celebration
+            // ✅ ALL WORKOUTS COMPLETED - UPDATE STREAK AND WIDGET
             updateStreak();
+            updateWidget(); // ✅ ADD THIS LINE
             sendWorkoutCompletedNotification();
             showCelebrationAnimation();
         }
@@ -433,7 +420,6 @@ public class WorkoutActivity extends AppCompatActivity {
         int randomIndex = (int) (Math.random() * messages.length);
         celebrationMessage.setText(messages[randomIndex]);
 
-        // Animate celebration icon
         celebrationIcon.setScaleX(0f);
         celebrationIcon.setScaleY(0f);
         celebrationIcon.setAlpha(0f);
@@ -450,7 +436,6 @@ public class WorkoutActivity extends AppCompatActivity {
                 .setDuration(800)
                 .start();
 
-        // Animate other elements
         celebrationTitle.setAlpha(0f);
         celebrationTitle.setTranslationY(-50f);
         celebrationTitle.animate()
@@ -546,6 +531,21 @@ public class WorkoutActivity extends AppCompatActivity {
 
             Log.d("WorkoutActivity", "Streak updated to: " + currentStreak);
         }
+    }
+
+    // ✅ ADD THIS NEW METHOD
+    private void updateWidget() {
+        Intent intent = new Intent(this, WorkoutWidgetProvider.class);
+        intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+
+        AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
+        ComponentName componentName = new ComponentName(this, WorkoutWidgetProvider.class);
+        int[] appWidgetIds = appWidgetManager.getAppWidgetIds(componentName);
+
+        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds);
+        sendBroadcast(intent);
+
+        Log.d("WorkoutActivity", "Widget update broadcast sent");
     }
 
     private void updateSetInfo() {
