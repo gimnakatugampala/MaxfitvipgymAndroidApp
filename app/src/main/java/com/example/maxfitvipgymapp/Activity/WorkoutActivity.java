@@ -276,9 +276,9 @@ public class WorkoutActivity extends AppCompatActivity {
             @Override
             public void run() {
                 if (timeLeft > 0) {
-                    timeLeft--;
                     updateTimerText();
                     updateServiceTimer();
+                    timeLeft--;
                     timerHandler.postDelayed(this, 1000);
                 } else {
                     handleTimerCompletion();
@@ -286,6 +286,9 @@ public class WorkoutActivity extends AppCompatActivity {
             }
         };
 
+        // Initial update before starting countdown
+        updateTimerText();
+        updateServiceTimer();
         timerHandler.postDelayed(timerRunnable, 1000);
         isRunning = true;
     }
@@ -360,8 +363,8 @@ public class WorkoutActivity extends AppCompatActivity {
                 public void run() {
                     if (timeLeft > 0) {
                         updateTimerText();
-                        timeLeft--;
                         updateServiceTimer();
+                        timeLeft--;
                         timerHandler.postDelayed(this, 1000);
                     } else {
                         currentWorkoutIndex++;
@@ -375,6 +378,9 @@ public class WorkoutActivity extends AppCompatActivity {
                 }
             };
 
+            // Initial update before starting countdown
+            updateTimerText();
+            updateServiceTimer();
             timerHandler.postDelayed(timerRunnable, 1000);
         } else {
             // ✅ ALL WORKOUTS COMPLETED - UPDATE STREAK AND WIDGET

@@ -22,48 +22,61 @@ public class WorkoutForegroundService extends android.app.Service {
     public static final String CHANNEL_ID = "WorkoutNotificationChannel";
     public static final String EXTRA_WORKOUT_TITLE = "WORKOUT_TITLE";
     public static final String EXTRA_DURATION = "WORKOUT_DURATION";
-    public static final String EXTRA_IS_RESTING = "IS_RESTING"; // ✅ new flag
+    public static final String EXTRA_IS_RESTING = "IS_RESTING";
 
     private Handler handler = new Handler();
     private int timeLeft;
     private int totalDuration;
     private String workoutTitle;
-    private boolean isResting = false; // ✅ default false
+    private boolean isResting = false;
 
     private Runnable timerRunnable = new Runnable() {
         @Override
         public void run() {
             if (timeLeft > 0) {
                 timeLeft--;
-                updateNotification(null);  // Update the notification
-                handler.postDelayed(this, 1000);  // Continue the countdown
+                updateNotification(null);
+                handler.postDelayed(this, 1000);
             } else {
                 updateNotification("Workout Complete!");
-                stopSelf();  // Stop the service when workout time is over
+                stopSelf();
             }
         }
     };
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
-        timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
-        totalDuration = totalDuration == 0 ? timeLeft : totalDuration;
-        isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false); // ✅ read resting flag
+        if (intent != null) {
+            workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
+            timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
+            isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
+
+            // Update total duration only when it's a new workout (not just an update)
+            if (totalDuration == 0 || timeLeft > totalDuration) {
+                totalDuration = timeLeft;
+            }
+        }
 
         createNotificationChannel();
-        startForeground(1, buildNotification());
 
+        // Update notification immediately with current values
+        Notification notification = buildNotification();
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.notify(1, notification);
+        }
+
+        // Only start foreground service if not already started
+        try {
+            startForeground(1, notification);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Don't run internal timer - just update notification when activity tells us
         handler.removeCallbacks(timerRunnable);
-        handler.postDelayed(timerRunnable, 1000);
 
         return START_NOT_STICKY;
-    }
-
-    private void sendTimerUpdateBroadcast(int timeLeft) {
-        Intent broadcastIntent = new Intent("com.example.maxfitvipgymapp.TIMER_UPDATE");
-        broadcastIntent.putExtra("timeLeft", timeLeft);
-        sendBroadcast(broadcastIntent);
     }
 
     private void updateNotification(String extraText) {
@@ -84,7 +97,7 @@ public class WorkoutForegroundService extends android.app.Service {
                     .setColor(Color.YELLOW)
                     .build();
         } else {
-            notification = buildNotification(); // Uses isResting title logic
+            notification = buildNotification();
         }
 
         if (manager != null) {
@@ -98,7 +111,7 @@ public class WorkoutForegroundService extends android.app.Service {
     }
 
     private Notification buildNotification() {
-        int progress = 100 - (int)(((float)timeLeft / totalDuration) * 100);
+        int progress = totalDuration > 0 ? 100 - (int)(((float)timeLeft / totalDuration) * 100) : 0;
         PendingIntent pendingIntent = buildPendingIntent();
 
         String displayTitle = isResting ? "Resting - " + workoutTitle : "Workout: " + workoutTitle;
