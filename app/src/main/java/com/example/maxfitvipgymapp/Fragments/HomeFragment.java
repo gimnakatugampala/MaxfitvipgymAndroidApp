@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
+import com.example.maxfitvipgymapp.Activity.WorkoutSettingsActivity;
 import com.example.maxfitvipgymapp.Adapter.CalendarMonthAdapter;
 import com.example.maxfitvipgymapp.Model.DateModel;
 import com.example.maxfitvipgymapp.Model.Member;
@@ -79,7 +80,8 @@ public class HomeFragment extends Fragment {
             streakBadge.setOnClickListener(v -> showStreakDialog());
         }
 
-        startWorkoutButton.setOnClickListener(v -> showWorkoutStartDialog());
+        // ✅ NEW: Add Voice Settings Button (in the title bar area)
+        addVoiceSettingsButton(view);
 
         // Add Data
         addMetric("Blood Pressure", "120/80", "mmHg", R.drawable.heartrate);
@@ -98,7 +100,153 @@ public class HomeFragment extends Fragment {
         return view;
     }
 
-    // ✅ NEW METHOD: Set personalized welcome message
+    // ✅ NEW METHOD: Add voice settings button
+    private void addVoiceSettingsButton(View view) {
+        // Find the header layout with home_title
+        LinearLayout homeContainer = view.findViewById(R.id.home_container);
+        if (homeContainer != null) {
+            // Find the header with title and streak badge
+            View headerLayout = homeContainer.getChildAt(0); // First child is the header
+
+            if (headerLayout instanceof LinearLayout) {
+                LinearLayout header = (LinearLayout) headerLayout;
+
+                // Create voice settings button
+                ImageView voiceSettingsBtn = new ImageView(getContext());
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        (int) (40 * getResources().getDisplayMetrics().density),
+                        (int) (40 * getResources().getDisplayMetrics().density)
+                );
+                params.setMargins(
+                        (int) (8 * getResources().getDisplayMetrics().density), 0,
+                        (int) (8 * getResources().getDisplayMetrics().density), 0
+                );
+                voiceSettingsBtn.setLayoutParams(params);
+                voiceSettingsBtn.setImageResource(R.drawable.heartrate); // Using heartrate as voice icon
+                voiceSettingsBtn.setColorFilter(Color.parseColor("#FFD300"));
+                voiceSettingsBtn.setPadding(8, 8, 8, 8);
+                voiceSettingsBtn.setBackground(ContextCompat.getDrawable(getContext(), R.drawable.circle_background));
+                voiceSettingsBtn.setClickable(true);
+                voiceSettingsBtn.setFocusable(true);
+
+                voiceSettingsBtn.setOnClickListener(v -> {
+                    Intent intent = new Intent(getActivity(), WorkoutSettingsActivity.class);
+                    startActivity(intent);
+                });
+
+                // Add to header (between title and streak badge)
+                header.addView(voiceSettingsBtn, header.getChildCount() - 1);
+            }
+        }
+
+        // Alternative: Add a dedicated settings card
+        addVoiceSettingsCard(view);
+    }
+
+    // ✅ NEW METHOD: Add voice settings card
+    private void addVoiceSettingsCard(View rootView) {
+        if (rootView == null) return;
+
+        LinearLayout homeContainer = rootView.findViewById(R.id.home_container);
+        if (homeContainer == null) return;
+
+        // Create settings card (insert after streak card)
+        CardView settingsCard = new CardView(getContext());
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        cardParams.setMargins(0, 0, 0, (int) (20 * getResources().getDisplayMetrics().density));
+        settingsCard.setLayoutParams(cardParams);
+        settingsCard.setCardBackgroundColor(Color.parseColor("#212121"));
+        settingsCard.setRadius(10);
+        settingsCard.setCardElevation(6);
+
+        LinearLayout cardLayout = new LinearLayout(getContext());
+        cardLayout.setOrientation(LinearLayout.HORIZONTAL);
+        cardLayout.setGravity(Gravity.CENTER_VERTICAL);
+        cardLayout.setPadding(15, 15, 15, 15);
+
+        // Icon
+        ImageView icon = new ImageView(getContext());
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(40, 40);
+        icon.setLayoutParams(iconParams);
+        icon.setImageResource(R.drawable.heartrate);
+        icon.setBackground(ContextCompat.getDrawable(getContext(), R.drawable.circle_yellow_bg));
+        icon.setPadding(8, 8, 8, 8);
+        cardLayout.addView(icon);
+
+        // Text layout
+        LinearLayout textLayout = new LinearLayout(getContext());
+        textLayout.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        textParams.setMargins(16, 0, 0, 0);
+        textLayout.setLayoutParams(textParams);
+
+        TextView titleText = new TextView(getContext());
+        titleText.setText("🎙️ Voice Guidance");
+        titleText.setTextColor(Color.WHITE);
+        titleText.setTextSize(18);
+        titleText.setTypeface(null, Typeface.BOLD);
+        textLayout.addView(titleText);
+
+        TextView subtitleText = new TextView(getContext());
+        subtitleText.setText("Hands-free workout with audio guidance");
+        subtitleText.setTextColor(Color.parseColor("#AAAAAA"));
+        subtitleText.setTextSize(14);
+        textLayout.addView(subtitleText);
+
+        cardLayout.addView(textLayout);
+
+        // Settings button
+        MaterialButton settingsBtn = new MaterialButton(getContext());
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                (int) (80 * getResources().getDisplayMetrics().density),
+                (int) (40 * getResources().getDisplayMetrics().density)
+        );
+        settingsBtn.setLayoutParams(btnParams);
+        settingsBtn.setText("SETUP");
+        settingsBtn.setTextSize(12);
+        settingsBtn.setTextColor(Color.BLACK);
+        settingsBtn.setBackgroundColor(Color.parseColor("#FFD300"));
+        settingsBtn.setCornerRadius((int) (20 * getResources().getDisplayMetrics().density));
+        cardLayout.addView(settingsBtn);
+
+        settingsCard.addView(cardLayout);
+
+        // Add click listeners
+        settingsCard.setClickable(true);
+        settingsCard.setFocusable(true);
+        settingsCard.setForeground(ContextCompat.getDrawable(getContext(), android.R.drawable.list_selector_background));
+
+        View.OnClickListener openSettings = v -> {
+            Intent intent = new Intent(getActivity(), WorkoutSettingsActivity.class);
+            startActivity(intent);
+        };
+
+        settingsCard.setOnClickListener(openSettings);
+        settingsBtn.setOnClickListener(openSettings);
+
+        // Find streak card position and insert after it
+        boolean inserted = false;
+        for (int i = 0; i < homeContainer.getChildCount(); i++) {
+            View child = homeContainer.getChildAt(i);
+            if (child.getId() == R.id.streakCard) {
+                homeContainer.addView(settingsCard, i + 1);
+                inserted = true;
+                break;
+            }
+        }
+
+        // If streak card not found, add at position 1 (after header)
+        if (!inserted && homeContainer.getChildCount() > 1) {
+            homeContainer.addView(settingsCard, 1);
+        }
+    }
+
+    // ✅ Set personalized welcome message
     private void setWelcomeMessage() {
         if (homeTitle != null) {
             Member member = sessionManager.getMemberData();

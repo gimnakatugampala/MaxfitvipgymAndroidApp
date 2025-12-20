@@ -11,10 +11,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -28,6 +31,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -47,6 +51,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -75,6 +80,18 @@ public class WorkoutActivity extends AppCompatActivity {
     private boolean isTransitioning = false;
     private GestureDetector gestureDetector;
     private boolean isResting = false;
+
+    // ✅ NEW: Text-to-Speech variables
+    private TextToSpeech tts;
+    private boolean isTTSReady = false;
+    private AudioManager audioManager;
+    private int originalMusicVolume;
+    private static final String TTS_UTTERANCE_ID = "workout_tts";
+
+    // ✅ NEW: Voice announcement settings
+    private boolean voiceGuidanceEnabled = true;
+    private int countdownVoiceStart = 10; // Start countdown voice at 10 seconds
+    private List<Integer> countdownNumbers = Arrays.asList(10, 5, 4, 3, 2, 1);
 
     private Workout[] workouts = {
             new Workout("WEIGHT LIFTING", false, 10, Arrays.asList(10, 10, 10),
@@ -115,6 +132,9 @@ public class WorkoutActivity extends AppCompatActivity {
             LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
             isReceiverRegistered = true;
         }
+
+        // ✅ Initialize Text-to-Speech
+        initializeTextToSpeech();
 
         workoutTitle = findViewById(R.id.workoutTitle);
         timerText = findViewById(R.id.timerText);
@@ -200,6 +220,122 @@ public class WorkoutActivity extends AppCompatActivity {
         setupWorkout();
     }
 
+    // ✅ NEW: Initialize Text-to-Speech
+    private void initializeTextToSpeech() {
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+
+        tts = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                int result = tts.setLanguage(Locale.US);
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e("TTS", "Language not supported");
+                    isTTSReady = false;
+                } else {
+                    isTTSReady = true;
+                    tts.setSpeechRate(0.9f); // Slightly slower for clarity
+                    tts.setPitch(1.0f);
+
+                    // Set up listener for when speech completes
+                    tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                        @Override
+                        public void onStart(String utteranceId) {
+                            // Duck music volume when speaking
+                            runOnUiThread(() -> duckMusicVolume(true));
+                        }
+
+                        @Override
+                        public void onDone(String utteranceId) {
+                            // Restore music volume after speaking
+                            runOnUiThread(() -> duckMusicVolume(false));
+                        }
+
+                        @Override
+                        public void onError(String utteranceId) {
+                            runOnUiThread(() -> duckMusicVolume(false));
+                        }
+                    });
+
+                    Log.d("TTS", "Text-to-Speech initialized successfully");
+                }
+            } else {
+                Log.e("TTS", "Text-to-Speech initialization failed");
+                isTTSReady = false;
+            }
+        });
+    }
+
+    // ✅ NEW: Duck/restore music volume
+    private void duckMusicVolume(boolean duck) {
+        if (audioManager != null) {
+            if (duck) {
+                // Store original volume and reduce it
+                originalMusicVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int duckVolume = (int) (originalMusicVolume * 0.3); // Reduce to 30%
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, duckVolume, 0);
+            } else {
+                // Restore original volume after a short delay
+                new Handler().postDelayed(() -> {
+                    if (audioManager != null) {
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalMusicVolume, 0);
+                    }
+                }, 500);
+            }
+        }
+    }
+
+    // ✅ NEW: Speak text with TTS
+    private void speak(String text) {
+        if (isTTSReady && voiceGuidanceEnabled && tts != null) {
+            HashMap<String, String> params = new HashMap<>();
+            params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, TTS_UTTERANCE_ID);
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+            Log.d("TTS", "Speaking: " + text);
+        }
+    }
+
+    // ✅ NEW: Announce workout start
+    private void announceWorkoutStart(Workout workout) {
+        String announcement;
+        if (workout.isDurationBased()) {
+            announcement = String.format("Starting %s. Duration: %d seconds. Go!",
+                    workout.getTitle(), workout.getTime());
+        } else {
+            announcement = String.format("Starting %s. Set %d of %d. %d repetitions. Go!",
+                    workout.getTitle(), currentSet, workout.getRepsPerSet().size(),
+                    workout.getRepsPerSet().get(currentSet - 1));
+        }
+        speak(announcement);
+    }
+
+    // ✅ NEW: Announce rest period
+    private void announceRestPeriod(int seconds, String nextActivity) {
+        String announcement = String.format("Rest for %d seconds. Next: %s", seconds, nextActivity);
+        speak(announcement);
+    }
+
+    // ✅ NEW: Announce countdown
+    private void announceCountdown(int seconds) {
+        if (countdownNumbers.contains(seconds)) {
+            speak(String.valueOf(seconds));
+        }
+    }
+
+    // ✅ NEW: Announce set completion
+    private void announceSetCompletion(int completedSet, int totalSets) {
+        String announcement;
+        if (completedSet < totalSets) {
+            announcement = String.format("Set %d complete. Rest before set %d", completedSet, completedSet + 1);
+        } else {
+            announcement = "Great job! All sets completed.";
+        }
+        speak(announcement);
+    }
+
+    // ✅ NEW: Announce workout completion
+    private void announceWorkoutCompletion() {
+        speak("Workout complete! Excellent work!");
+    }
+
     private void onSwipeUp() {
         if (isTransitioning && !isResting) return;
 
@@ -259,6 +395,10 @@ public class WorkoutActivity extends AppCompatActivity {
         scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, 0));
 
         playPauseButton.setImageResource(R.drawable.pause);
+
+        // ✅ Announce workout start
+        new Handler().postDelayed(() -> announceWorkoutStart(workout), 1000);
+
         startTimer();
     }
 
@@ -278,6 +418,12 @@ public class WorkoutActivity extends AppCompatActivity {
                 if (timeLeft > 0) {
                     updateTimerText();
                     updateServiceTimer();
+
+                    // ✅ Announce countdown numbers
+                    if (timeLeft <= countdownVoiceStart) {
+                        announceCountdown(timeLeft);
+                    }
+
                     timeLeft--;
                     timerHandler.postDelayed(this, 1000);
                 } else {
@@ -286,7 +432,6 @@ public class WorkoutActivity extends AppCompatActivity {
             }
         };
 
-        // Initial update before starting countdown
         updateTimerText();
         updateServiceTimer();
         timerHandler.postDelayed(timerRunnable, 1000);
@@ -324,24 +469,37 @@ public class WorkoutActivity extends AppCompatActivity {
                 workoutTitle.setText(current.getTitle());
                 updateSetInfo();
                 updateServiceTimer();
+
+                // ✅ Announce new set
+                announceWorkoutStart(current);
+
                 startTimer();
             } else {
                 completedSets.add(currentSet);
+
+                // ✅ Announce set completion
+                announceSetCompletion(currentSet, current.getRepsPerSet().size());
 
                 if (currentSet < current.getRepsPerSet().size()) {
                     isResting = true;
                     timeLeft = 60;
                     workoutTitle.setText("REST - " + current.getTitle());
                     setInfoText.setText("Rest before Set " + (currentSet + 1));
+
+                    // ✅ Announce rest
+                    announceRestPeriod(60, "Set " + (currentSet + 1));
+
                     updateServiceTimer();
                     startTimer();
                 } else {
                     sendWorkoutCompletedNotification();
+                    announceWorkoutCompletion();
                     moveToNextWorkout();
                 }
             }
         } else {
             sendWorkoutCompletedNotification();
+            announceWorkoutCompletion();
             moveToNextWorkout();
         }
     }
@@ -358,12 +516,21 @@ public class WorkoutActivity extends AppCompatActivity {
             setInfoText.setText("Rest before next workout");
             setInfoText.setVisibility(View.VISIBLE);
 
+            // ✅ Announce rest before next workout
+            announceRestPeriod(60, workouts[currentWorkoutIndex + 1].getTitle());
+
             timerRunnable = new Runnable() {
                 @Override
                 public void run() {
                     if (timeLeft > 0) {
                         updateTimerText();
                         updateServiceTimer();
+
+                        // ✅ Countdown announcements
+                        if (timeLeft <= countdownVoiceStart) {
+                            announceCountdown(timeLeft);
+                        }
+
                         timeLeft--;
                         timerHandler.postDelayed(this, 1000);
                     } else {
@@ -378,14 +545,12 @@ public class WorkoutActivity extends AppCompatActivity {
                 }
             };
 
-            // Initial update before starting countdown
             updateTimerText();
             updateServiceTimer();
             timerHandler.postDelayed(timerRunnable, 1000);
         } else {
-            // ✅ ALL WORKOUTS COMPLETED - UPDATE STREAK AND WIDGET
             updateStreak();
-            updateWidget(); // ✅ ADD THIS LINE
+            updateWidget();
             sendWorkoutCompletedNotification();
             showCelebrationAnimation();
         }
@@ -539,7 +704,6 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
-    // ✅ ADD THIS NEW METHOD
     private void updateWidget() {
         Intent intent = new Intent(this, WorkoutWidgetProvider.class);
         intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
@@ -689,6 +853,12 @@ public class WorkoutActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        // ✅ Clean up Text-to-Speech
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+        }
+
         if (mediaPlayer != null) {
             mediaPlayer.release();
         }
@@ -697,6 +867,15 @@ public class WorkoutActivity extends AppCompatActivity {
         if (isReceiverRegistered) {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(timerUpdateReceiver);
             isReceiverRegistered = false;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // ✅ Stop TTS when app goes to background
+        if (tts != null && tts.isSpeaking()) {
+            tts.stop();
         }
     }
 
