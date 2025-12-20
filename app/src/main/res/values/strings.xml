@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">MaxfitvipgymApp</string>
+    <string name="widget_description">Track your workout streak and stay motivated</string>
 </resources>

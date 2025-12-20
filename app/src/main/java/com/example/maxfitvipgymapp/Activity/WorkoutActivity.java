@@ -200,21 +200,61 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void onSwipeUp() {
-        // Only block swipe if we are in the actual slide animation phase (transitioning) AND not in the rest countdown phase.
-        // This allows the user to swipe to skip the "Rest before next workout" timer.
-        if (isTransitioning && !isResting) return;
+        if (isTransitioning) return;
 
-        Log.d("WorkoutActivity", "Swipe up detected - Skipping current timer/rest");
+        Log.d("WorkoutActivity", "Swipe up detected");
 
-        // Stop the current timer
         stopTimer();
 
-        // Force the timer to zero
-        timeLeft = 0;
+        // Check if we're in a rest period
+        if (isResting) {
+            Workout current = workouts[currentWorkoutIndex];
 
-        // Immediately trigger the timer logic (which will handle the 'else { completed }' block)
-        if (timerRunnable != null) {
-            timerRunnable.run();
+            // Check if this is rest between sets (strength workout)
+            if (!current.isDurationBased() && current.getRepsPerSet() != null) {
+                // Check if there are more sets to complete
+                if (currentSet < current.getRepsPerSet().size()) {
+                    // Skip rest and move to next set
+                    Log.d("WorkoutActivity", "Skipping rest - moving to next set");
+                    isResting = false;
+                    currentSet++;
+                    timeLeft = current.getTime();
+                    workoutTitle.setText(current.getTitle());
+                    updateSetInfo();
+                    updateServiceTimer();
+                    startTimer();
+                    return;
+                } else {
+                    // All sets done, skip rest and move to next workout
+                    Log.d("WorkoutActivity", "Skipping rest - moving to next workout");
+                    isResting = false;
+                    currentSet = 1;
+                    completedSets.clear();
+                    moveToNextWorkout();
+                    return;
+                }
+            } else {
+                // This is rest between workouts, skip to next workout
+                Log.d("WorkoutActivity", "Skipping rest between workouts");
+                isResting = false;
+                currentSet = 1;
+                completedSets.clear();
+                currentWorkoutIndex++;
+                isTransitioning = true;
+                animateWorkoutTransition(() -> {
+                    setupWorkout();
+                    isTransitioning = false;
+                });
+                stopService(new Intent(WorkoutActivity.this, WorkoutForegroundService.class));
+                return;
+            }
+        } else {
+            // Not in rest period, skip entire current workout
+            Log.d("WorkoutActivity", "Skipping entire workout");
+            isResting = false;
+            currentSet = 1;
+            completedSets.clear();
+            moveToNextWorkout();
         }
     }
 
