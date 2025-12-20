@@ -18,10 +18,20 @@ public class VerificationPhoneNumberActivity extends AppCompatActivity {
     private EditText codeInput1, codeInput2, codeInput3, codeInput4, codeInput5;
     private MaterialButton btnVerify;
 
+    // Add these fields to store data from intent
+    private String phoneNumber;
+    private int memberId;
+    private boolean memberExists;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_verification);  // Make sure this is the correct layout file
+
+        // Get data from intent
+        phoneNumber = getIntent().getStringExtra("phoneNumber");
+        memberId = getIntent().getIntExtra("memberId", -1);
+        memberExists = getIntent().getBooleanExtra("memberExists", false);
 
         // Initialize the EditText fields
         codeInput1 = findViewById(R.id.codeInput1);
@@ -56,8 +66,11 @@ public class VerificationPhoneNumberActivity extends AppCompatActivity {
                         // Proceed with the verification
                         Toast.makeText(VerificationPhoneNumberActivity.this, "Code Verified", Toast.LENGTH_SHORT).show();
 
-                        // Navigate to the Membership Details Activity
+                        // Navigate to the Membership Details Activity WITH ALL DATA
                         Intent intent = new Intent(VerificationPhoneNumberActivity.this, MembershipDetailsActivity.class);
+                        intent.putExtra("phoneNumber", phoneNumber);
+                        intent.putExtra("memberId", memberId);
+                        intent.putExtra("memberExists", memberExists);
                         startActivity(intent);
                         finish(); // Finish the current activity to prevent the user from going back
                     } else {

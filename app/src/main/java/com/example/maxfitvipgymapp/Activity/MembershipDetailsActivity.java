@@ -2,6 +2,7 @@ package com.example.maxfitvipgymapp.Activity;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -19,6 +20,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MembershipDetailsActivity extends AppCompatActivity {
+
+    private static final String TAG = "MembershipDetails";
 
     private EditText membershipIDInput, firstNameInput, lastNameInput;
     private MaterialButton btnFinish;
@@ -51,9 +54,22 @@ public class MembershipDetailsActivity extends AppCompatActivity {
         memberId = getIntent().getIntExtra("memberId", -1);
         memberExists = getIntent().getBooleanExtra("memberExists", false);
 
+        Log.d(TAG, "onCreate - Phone: " + phoneNumber);
+        Log.d(TAG, "onCreate - MemberId: " + memberId);
+        Log.d(TAG, "onCreate - MemberExists: " + memberExists);
+
+        // Validate phone number was passed
+        if (phoneNumber == null || phoneNumber.isEmpty()) {
+            Toast.makeText(this, "Error: Phone number not provided", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Phone number is null or empty!");
+            finish();
+            return;
+        }
+
         // Update UI based on whether member exists
         if (memberExists && memberId != -1) {
             title.setText("Welcome Back!");
+            btnFinish.setText("Login");
             loadMemberData();
         } else {
             title.setText("Create Your Profile");
@@ -97,6 +113,7 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                     });
                 }
             } catch (Exception e) {
+                Log.e(TAG, "Error loading member data", e);
                 runOnUiThread(() ->
                         Toast.makeText(this, "Error loading member data", Toast.LENGTH_SHORT).show()
                 );
@@ -109,16 +126,16 @@ public class MembershipDetailsActivity extends AppCompatActivity {
 
         executorService.execute(() -> {
             try {
-                android.util.Log.d("MembershipDetails", "Creating new member:");
-                android.util.Log.d("MembershipDetails", "Phone: " + phoneNumber);
-                android.util.Log.d("MembershipDetails", "Membership ID: " + membershipID);
-                android.util.Log.d("MembershipDetails", "Name: " + firstName + " " + lastName);
+                Log.d(TAG, "Creating new member:");
+                Log.d(TAG, "Phone: " + phoneNumber);
+                Log.d(TAG, "Membership ID: " + membershipID);
+                Log.d(TAG, "Name: " + firstName + " " + lastName);
 
                 // Check if membership ID already exists
                 Member existingMember = memberRepository.getMemberByMembershipId(membershipID);
 
                 if (existingMember != null) {
-                    android.util.Log.e("MembershipDetails", "Membership ID already exists");
+                    Log.e(TAG, "Membership ID already exists");
                     runOnUiThread(() -> {
                         btnFinish.setEnabled(true);
                         Toast.makeText(MembershipDetailsActivity.this,
@@ -138,10 +155,11 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                 newMember.setDeleted(false);
                 newMember.setPlatformId(2); // Android platform (assuming 2 is for mobile)
 
+                Log.d(TAG, "Attempting to create member in database...");
                 Member createdMember = memberRepository.createMember(newMember);
 
                 if (createdMember != null) {
-                    android.util.Log.d("MembershipDetails", "Member created successfully with ID: " + createdMember.getId());
+                    Log.d(TAG, "Member created successfully with ID: " + createdMember.getId());
 
                     runOnUiThread(() -> {
                         // Save session
@@ -158,17 +176,17 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                         finish();
                     });
                 } else {
-                    android.util.Log.e("MembershipDetails", "Failed to create member");
+                    Log.e(TAG, "Failed to create member - createMember returned null");
                     runOnUiThread(() -> {
                         btnFinish.setEnabled(true);
                         Toast.makeText(MembershipDetailsActivity.this,
-                                "Failed to create account. Please try again.",
+                                "Failed to create account. Please check your internet connection and try again.",
                                 Toast.LENGTH_LONG).show();
                     });
                 }
 
             } catch (Exception e) {
-                android.util.Log.e("MembershipDetails", "Error creating member", e);
+                Log.e(TAG, "Error creating member", e);
                 runOnUiThread(() -> {
                     btnFinish.setEnabled(true);
                     Toast.makeText(MembershipDetailsActivity.this,
@@ -184,17 +202,17 @@ public class MembershipDetailsActivity extends AppCompatActivity {
 
         executorService.execute(() -> {
             try {
-                android.util.Log.d("MembershipDetails", "Attempting to verify:");
-                android.util.Log.d("MembershipDetails", "Phone: " + phoneNumber);
-                android.util.Log.d("MembershipDetails", "Membership ID: " + membershipID);
-                android.util.Log.d("MembershipDetails", "First Name: " + firstName);
-                android.util.Log.d("MembershipDetails", "Last Name: " + lastName);
+                Log.d(TAG, "Attempting to verify:");
+                Log.d(TAG, "Phone: " + phoneNumber);
+                Log.d(TAG, "Membership ID: " + membershipID);
+                Log.d(TAG, "First Name: " + firstName);
+                Log.d(TAG, "Last Name: " + lastName);
 
                 // First, try to get member by phone
                 Member memberByPhone = memberRepository.getMemberByPhone(phoneNumber);
 
                 if (memberByPhone == null) {
-                    android.util.Log.e("MembershipDetails", "No member found with phone: " + phoneNumber);
+                    Log.e(TAG, "No member found with phone: " + phoneNumber);
                     runOnUiThread(() -> {
                         btnFinish.setEnabled(true);
                         Toast.makeText(MembershipDetailsActivity.this,
@@ -204,12 +222,12 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                     return;
                 }
 
-                android.util.Log.d("MembershipDetails", "Found member: " + memberByPhone.getFirstName() + " " + memberByPhone.getLastName());
-                android.util.Log.d("MembershipDetails", "DB Membership ID: " + memberByPhone.getMembershipId());
+                Log.d(TAG, "Found member: " + memberByPhone.getFirstName() + " " + memberByPhone.getLastName());
+                Log.d(TAG, "DB Membership ID: " + memberByPhone.getMembershipId());
 
                 // Check if membership ID matches
                 if (!memberByPhone.getMembershipId().equalsIgnoreCase(membershipID)) {
-                    android.util.Log.e("MembershipDetails", "Membership ID mismatch");
+                    Log.e(TAG, "Membership ID mismatch");
                     runOnUiThread(() -> {
                         btnFinish.setEnabled(true);
                         Toast.makeText(MembershipDetailsActivity.this,
@@ -229,9 +247,9 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                 boolean lastNameMatches = dbLastName.equalsIgnoreCase(inputLastName);
 
                 if (!firstNameMatches || !lastNameMatches) {
-                    android.util.Log.e("MembershipDetails", "Name mismatch");
-                    android.util.Log.e("MembershipDetails", "Expected: " + dbFirstName + " " + dbLastName);
-                    android.util.Log.e("MembershipDetails", "Got: " + inputFirstName + " " + inputLastName);
+                    Log.e(TAG, "Name mismatch");
+                    Log.e(TAG, "Expected: " + dbFirstName + " " + dbLastName);
+                    Log.e(TAG, "Got: " + inputFirstName + " " + inputLastName);
 
                     runOnUiThread(() -> {
                         btnFinish.setEnabled(true);
@@ -243,7 +261,7 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                 }
 
                 // All checks passed - login successful
-                android.util.Log.d("MembershipDetails", "Verification successful!");
+                Log.d(TAG, "Verification successful!");
 
                 // Update last active
                 memberRepository.updateLastActive(memberByPhone.getId());
@@ -264,7 +282,7 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
-                android.util.Log.e("MembershipDetails", "Error during verification", e);
+                Log.e(TAG, "Error during verification", e);
                 runOnUiThread(() -> {
                     btnFinish.setEnabled(true);
                     Toast.makeText(MembershipDetailsActivity.this,

@@ -50,6 +50,7 @@
         <activity android:name=".Activity.MembershipDetailsActivity"/>
         <activity android:name=".Activity.WorkoutActivity"/>
         <activity android:name=".Activity.TestConnectionActivity"/>
+        <activity android:name=".Activity.DebugMemberCreationActivity"/>
 
     </application>
 
