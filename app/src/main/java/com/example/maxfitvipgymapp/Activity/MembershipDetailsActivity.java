@@ -153,13 +153,15 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                 newMember.setPhoneNumber(phoneNumber);
                 newMember.setActive(true);
                 newMember.setDeleted(false);
-                newMember.setPlatformId(2); // Android platform (assuming 2 is for mobile)
+                newMember.setPlatformId(1); // ✅ FIXED: Android platform = 1 (iOS = 2)
 
                 Log.d(TAG, "Attempting to create member in database...");
                 Member createdMember = memberRepository.createMember(newMember);
 
                 if (createdMember != null) {
-                    Log.d(TAG, "Member created successfully with ID: " + createdMember.getId());
+                    Log.d(TAG, "Member created successfully!");
+                    Log.d(TAG, "ID: " + createdMember.getId());
+                    Log.d(TAG, "Code: " + createdMember.getCode()); // Should be auto-generated as M_001, M_002, etc.
 
                     runOnUiThread(() -> {
                         // Save session
