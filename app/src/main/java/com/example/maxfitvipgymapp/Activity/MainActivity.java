@@ -18,15 +18,19 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.example.maxfitvipgymapp.Model.Member;
 import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Fragments.HomeFragment;
 import com.example.maxfitvipgymapp.Fragments.InsightsFragment;
 import com.example.maxfitvipgymapp.Fragments.ProfileFragment;
+import com.example.maxfitvipgymapp.Repository.MemberRepository;
 import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.example.maxfitvipgymapp.Widget.WorkoutWidgetProvider;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -35,21 +39,26 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "WidgetPrefs";
     private static final String KEY_WIDGET_ASKED = "widget_asked";
     private SessionManager sessionManager;
+    private MemberRepository memberRepository;
+    private ExecutorService executorService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ✅ Check if user is logged in - MOVED TO TOP
+        // ✅ Initialize repositories and executors
         sessionManager = new SessionManager(this);
+        memberRepository = new MemberRepository();
+        executorService = Executors.newSingleThreadExecutor();
+
+        // ✅ Check if user is logged in
         if (!sessionManager.isLoggedIn()) {
-            // Redirect to login
-            Intent intent = new Intent(this, GetStartedActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            redirectToLogin();
             return;
         }
+
+        // ✅ Check if user is approved (is_active = true)
+        checkUserApprovalStatus();
 
         setContentView(R.layout.activity_main);
 
@@ -84,6 +93,58 @@ public class MainActivity extends AppCompatActivity {
 
         // Ask to pin widget on first launch
         askToPinWidget();
+    }
+
+    // ✅ NEW METHOD: Check if user account is approved
+    private void checkUserApprovalStatus() {
+        Member member = sessionManager.getMemberData();
+        if (member == null) {
+            redirectToLogin();
+            return;
+        }
+
+        // Check in background
+        executorService.execute(() -> {
+            try {
+                // Get fresh data from database
+                Member freshMember = memberRepository.getMemberById(member.getId());
+
+                if (freshMember == null) {
+                    runOnUiThread(this::redirectToLogin);
+                    return;
+                }
+
+                // ✅ Check if account is still active
+                if (!freshMember.isActive()) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Your account is pending approval", Toast.LENGTH_LONG).show();
+                        redirectToWaitingScreen(freshMember);
+                    });
+                }
+
+                // Update session with fresh data
+                runOnUiThread(() -> sessionManager.updateMemberData(freshMember));
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private void redirectToLogin() {
+        Intent intent = new Intent(this, GetStartedActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
+
+    private void redirectToWaitingScreen(Member member) {
+        Intent intent = new Intent(this, WaitingApprovalActivity.class);
+        intent.putExtra("firstName", member.getFirstName());
+        intent.putExtra("phoneNumber", member.getPhoneNumber());
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 
     private boolean loadFragment(Fragment fragment) {
@@ -153,12 +214,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // ✅ Check session is still valid
+        // ✅ Check session and approval status on resume
         if (!sessionManager.isLoggedIn()) {
-            Intent intent = new Intent(this, GetStartedActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
+            redirectToLogin();
+        } else {
+            checkUserApprovalStatus();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdown();
         }
     }
 }

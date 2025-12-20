@@ -65,10 +65,55 @@ public class MemberRepository {
         return null;
     }
 
-    // Create new member
+    // ✅ NEW METHOD: Generate next member code
+    private String generateNextMemberCode() {
+        try {
+            // Get all members ordered by code descending
+            String filter = "select=code&order=code.desc&limit=1";
+            JSONArray result = client.select(SupabaseConfig.TABLE_MEMBERS, filter);
+
+            int nextNumber = 1; // Default to M_001
+
+            if (result.length() > 0) {
+                String lastCode = result.getJSONObject(0).optString("code", "");
+
+                // Extract number from code like "M_001"
+                if (lastCode != null && lastCode.startsWith("M_")) {
+                    try {
+                        String numberPart = lastCode.substring(2); // Remove "M_"
+                        int lastNumber = Integer.parseInt(numberPart);
+                        nextNumber = lastNumber + 1;
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, "Could not parse code number from: " + lastCode);
+                    }
+                }
+            }
+
+            // Format as M_001, M_002, etc.
+            return String.format("M_%03d", nextNumber);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error generating member code: " + e.getMessage());
+            // Return a timestamp-based code as fallback
+            return "M_" + System.currentTimeMillis();
+        }
+    }
+
+    // ✅ UPDATED: Create new member with auto-generated code
     public Member createMember(Member member) {
         try {
+            // Generate code if not already set
+            if (member.getCode() == null || member.getCode().isEmpty()) {
+                String generatedCode = generateNextMemberCode();
+                member.setCode(generatedCode);
+                Log.d(TAG, "Generated member code: " + generatedCode);
+            }
+
             JSONObject data = member.toJSON();
+
+            // ✅ Add the generated code to the JSON
+            data.put("code", member.getCode());
+
             JSONArray result = client.insert(SupabaseConfig.TABLE_MEMBERS, data);
 
             if (result.length() > 0) {
@@ -76,6 +121,7 @@ public class MemberRepository {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error creating member: " + e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }

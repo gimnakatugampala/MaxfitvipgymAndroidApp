@@ -145,15 +145,15 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                     return;
                 }
 
-                // Create new member
+                // ✅ Create new member with is_active = false (waiting for admin approval)
                 Member newMember = new Member();
                 newMember.setMembershipId(membershipID);
                 newMember.setFirstName(firstName);
                 newMember.setLastName(lastName);
                 newMember.setPhoneNumber(phoneNumber);
-                newMember.setActive(true);
+                newMember.setActive(false); // ✅ CHANGED: Set to false for approval
                 newMember.setDeleted(false);
-                newMember.setPlatformId(1); // ✅ FIXED: Android platform = 1 (iOS = 2)
+                newMember.setPlatformId(1); // Android platform = 1
 
                 Log.d(TAG, "Attempting to create member in database...");
                 Member createdMember = memberRepository.createMember(newMember);
@@ -161,18 +161,19 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                 if (createdMember != null) {
                     Log.d(TAG, "Member created successfully!");
                     Log.d(TAG, "ID: " + createdMember.getId());
-                    Log.d(TAG, "Code: " + createdMember.getCode()); // Should be auto-generated as M_001, M_002, etc.
+                    Log.d(TAG, "Code: " + createdMember.getCode());
+                    Log.d(TAG, "is_active: " + createdMember.isActive());
 
                     runOnUiThread(() -> {
-                        // Save session
-                        sessionManager.createLoginSession(createdMember);
-
+                        // ✅ CHANGED: Do NOT save session, redirect to waiting screen
                         Toast.makeText(MembershipDetailsActivity.this,
-                                "Account created successfully! Welcome " + firstName,
+                                "Registration submitted successfully!",
                                 Toast.LENGTH_SHORT).show();
 
-                        // Navigate to main activity
-                        Intent intent = new Intent(MembershipDetailsActivity.this, MainActivity.class);
+                        // ✅ Redirect to approval waiting screen
+                        Intent intent = new Intent(MembershipDetailsActivity.this, WaitingApprovalActivity.class);
+                        intent.putExtra("firstName", firstName);
+                        intent.putExtra("phoneNumber", phoneNumber);
                         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                         startActivity(intent);
                         finish();
@@ -226,6 +227,27 @@ public class MembershipDetailsActivity extends AppCompatActivity {
 
                 Log.d(TAG, "Found member: " + memberByPhone.getFirstName() + " " + memberByPhone.getLastName());
                 Log.d(TAG, "DB Membership ID: " + memberByPhone.getMembershipId());
+                Log.d(TAG, "is_active: " + memberByPhone.isActive());
+
+                // ✅ Check if member is approved
+                if (!memberByPhone.isActive()) {
+                    Log.e(TAG, "Member not approved yet");
+                    runOnUiThread(() -> {
+                        btnFinish.setEnabled(true);
+                        Toast.makeText(MembershipDetailsActivity.this,
+                                "Your account is pending admin approval",
+                                Toast.LENGTH_LONG).show();
+
+                        // ✅ Redirect to waiting screen
+                        Intent intent = new Intent(MembershipDetailsActivity.this, WaitingApprovalActivity.class);
+                        intent.putExtra("firstName", memberByPhone.getFirstName());
+                        intent.putExtra("phoneNumber", phoneNumber);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                        finish();
+                    });
+                    return;
+                }
 
                 // Check if membership ID matches
                 if (!memberByPhone.getMembershipId().equalsIgnoreCase(membershipID)) {
@@ -262,7 +284,7 @@ public class MembershipDetailsActivity extends AppCompatActivity {
                     return;
                 }
 
-                // All checks passed - login successful
+                // ✅ All checks passed - member is approved and verified
                 Log.d(TAG, "Verification successful!");
 
                 // Update last active

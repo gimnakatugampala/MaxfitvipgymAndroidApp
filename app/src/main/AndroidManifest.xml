@@ -51,6 +51,7 @@
         <activity android:name=".Activity.WorkoutActivity"/>
         <activity android:name=".Activity.TestConnectionActivity"/>
         <activity android:name=".Activity.DebugMemberCreationActivity"/>
+        <activity android:name=".Activity.WaitingApprovalActivity"/>
 
     </application>
 
