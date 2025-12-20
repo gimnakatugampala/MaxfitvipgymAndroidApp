@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.view.View;
 import android.widget.RemoteViews;
 
 import com.example.maxfitvipgymapp.Activity.MainActivity;
@@ -52,13 +53,24 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
         boolean isRestDay = currentDay.equals("Wednesday") || currentDay.equals("Sunday");
         boolean workoutCompletedToday = today.equals(lastWorkoutDate);
 
+        // Update streak number
         views.setTextViewText(R.id.widgetStreakNumber, String.valueOf(currentStreak));
 
+        // Show progress indicator if streak > 0
+        if (currentStreak > 0 && !isRestDay && !workoutCompletedToday) {
+            views.setViewVisibility(R.id.widgetProgressSection, View.VISIBLE);
+        } else {
+            views.setViewVisibility(R.id.widgetProgressSection, View.GONE);
+        }
+
         if (isRestDay) {
-            views.setTextViewText(R.id.widgetTitle, "Rest Day 😴");
-            views.setTextViewText(R.id.widgetMessage, "Relax today!");
-            views.setTextViewText(R.id.widgetButton, "VIEW");
+            // REST DAY STATE
+            views.setTextViewText(R.id.widgetTitle, "Rest Day");
+            views.setTextViewText(R.id.widgetEmoji, " 😴");
+            views.setTextViewText(R.id.widgetMessage, "Relax and recover today");
+            views.setTextViewText(R.id.widgetButtonText, "VIEW SCHEDULE");
             views.setImageViewResource(R.id.widgetIcon, R.drawable.resting);
+            views.setImageViewResource(R.id.widgetButtonIcon, R.drawable.ic_view);
 
             Intent mainIntent = new Intent(context, MainActivity.class);
             mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -66,10 +78,13 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
             views.setOnClickPendingIntent(R.id.widgetButton, mainPendingIntent);
 
         } else if (workoutCompletedToday) {
-            views.setTextViewText(R.id.widgetTitle, "Great Job! 🎉");
-            views.setTextViewText(R.id.widgetMessage, "Workout completed!");
-            views.setTextViewText(R.id.widgetButton, "VIEW");
+            // COMPLETED STATE
+            views.setTextViewText(R.id.widgetTitle, "Great Job");
+            views.setTextViewText(R.id.widgetEmoji, " 🎉");
+            views.setTextViewText(R.id.widgetMessage, "Today's workout completed!");
+            views.setTextViewText(R.id.widgetButtonText, "VIEW PROGRESS");
             views.setImageViewResource(R.id.widgetIcon, R.drawable.workout);
+            views.setImageViewResource(R.id.widgetButtonIcon, R.drawable.ic_check);
 
             Intent mainIntent = new Intent(context, MainActivity.class);
             mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -77,10 +92,13 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
             views.setOnClickPendingIntent(R.id.widgetButton, mainPendingIntent);
 
         } else {
-            views.setTextViewText(R.id.widgetTitle, "Let's Workout! 💪");
-            views.setTextViewText(R.id.widgetMessage, getShortMessage(currentStreak));
-            views.setTextViewText(R.id.widgetButton, "START");
+            // WORKOUT PENDING STATE
+            views.setTextViewText(R.id.widgetTitle, "Let's Workout");
+            views.setTextViewText(R.id.widgetEmoji, " 💪");
+            views.setTextViewText(R.id.widgetMessage, getMotivationalMessage(currentStreak));
+            views.setTextViewText(R.id.widgetButtonText, "START WORKOUT");
             views.setImageViewResource(R.id.widgetIcon, R.drawable.running);
+            views.setImageViewResource(R.id.widgetButtonIcon, R.drawable.ic_play);
 
             Intent workoutIntent = new Intent(context, WorkoutActivity.class);
             workoutIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -91,17 +109,19 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 
-    private static String getShortMessage(int streak) {
+    private static String getMotivationalMessage(int streak) {
         if (streak == 0) {
-            return "Start today!";
+            return "Start your journey today";
         } else if (streak < 3) {
-            return "Keep going!";
+            return "Keep the momentum going!";
         } else if (streak < 7) {
-            return streak + " days strong!";
+            return streak + " days strong! Keep it up";
         } else if (streak < 14) {
-            return streak + " day streak!";
+            return "Amazing " + streak + " day streak!";
+        } else if (streak < 30) {
+            return "Unstoppable! " + streak + " days!";
         } else {
-            return "🔥 " + streak + " days!";
+            return "Legend! " + streak + " days! 🔥";
         }
     }
 
