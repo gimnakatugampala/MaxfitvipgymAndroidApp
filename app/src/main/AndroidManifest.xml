@@ -49,6 +49,7 @@
         <activity android:name=".Activity.VerificationPhoneNumberActivity"/>
         <activity android:name=".Activity.MembershipDetailsActivity"/>
         <activity android:name=".Activity.WorkoutActivity"/>
+        <activity android:name=".Activity.TestConnectionActivity"/>
 
     </application>
 

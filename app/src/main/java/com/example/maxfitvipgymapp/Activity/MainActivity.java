@@ -22,6 +22,7 @@ import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Fragments.HomeFragment;
 import com.example.maxfitvipgymapp.Fragments.InsightsFragment;
 import com.example.maxfitvipgymapp.Fragments.ProfileFragment;
+import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.example.maxfitvipgymapp.Widget.WorkoutWidgetProvider;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -33,15 +34,30 @@ public class MainActivity extends AppCompatActivity {
     private HashMap<Integer, Fragment> fragmentMap;
     private static final String PREFS_NAME = "WidgetPrefs";
     private static final String KEY_WIDGET_ASKED = "widget_asked";
+    private SessionManager sessionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Check if user is logged in
+        sessionManager = new SessionManager(this);
+        if (!sessionManager.isLoggedIn()) {
+            // Redirect to login
+            Intent intent = new Intent(this, GetStartedActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_main);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
             }
         }
 
@@ -52,7 +68,14 @@ public class MainActivity extends AppCompatActivity {
         fragmentMap.put(R.id.nav_insights, new InsightsFragment());
         fragmentMap.put(R.id.nav_profile, new ProfileFragment());
 
-        loadFragment(fragmentMap.get(R.id.nav_home));
+        // Handle navigation from widget or notification
+        String navigateTo = getIntent().getStringExtra("navigateTo");
+        if ("home".equals(navigateTo)) {
+            loadFragment(fragmentMap.get(R.id.nav_home));
+            bottomNavigationView.setSelectedItemId(R.id.nav_home);
+        } else {
+            loadFragment(fragmentMap.get(R.id.nav_home));
+        }
 
         bottomNavigationView.setOnItemSelectedListener(item -> {
             Fragment selectedFragment = fragmentMap.get(item.getItemId());
@@ -78,16 +101,14 @@ public class MainActivity extends AppCompatActivity {
         boolean hasAsked = prefs.getBoolean(KEY_WIDGET_ASKED, false);
 
         if (!hasAsked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Check if widget is already added
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
             ComponentName componentName = new ComponentName(this, WorkoutWidgetProvider.class);
             int[] appWidgetIds = appWidgetManager.getAppWidgetIds(componentName);
 
             if (appWidgetIds.length == 0) {
-                // Widget not added, show dialog
                 new AlertDialog.Builder(this)
                         .setTitle("Add Home Screen Widget")
-                        .setMessage("Add a widget to your home screen to track your workout streak and get quick access to start workouts!")
+                        .setMessage("Add a widget to your home screen to track your workout streak!")
                         .setPositiveButton("Add Widget", (dialog, which) -> {
                             pinWidget();
                             prefs.edit().putBoolean(KEY_WIDGET_ASKED, true).apply();
@@ -98,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
                         .setCancelable(true)
                         .show();
             } else {
-                // Widget already added
                 prefs.edit().putBoolean(KEY_WIDGET_ASKED, true).apply();
             }
         }
@@ -112,23 +132,33 @@ public class MainActivity extends AppCompatActivity {
             if (appWidgetManager != null && appWidgetManager.isRequestPinAppWidgetSupported()) {
                 Intent pinnedWidgetCallbackIntent = new Intent(this, MainActivity.class);
                 PendingIntent successCallback = PendingIntent.getActivity(
-                        this,
-                        0,
-                        pinnedWidgetCallbackIntent,
-                        PendingIntent.FLAG_IMMUTABLE
+                        this, 0, pinnedWidgetCallbackIntent, PendingIntent.FLAG_IMMUTABLE
                 );
 
                 boolean success = appWidgetManager.requestPinAppWidget(myProvider, null, successCallback);
 
                 if (success) {
-                    Toast.makeText(this, "Please place the widget on your home screen", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Please place the widget on your home screen",
+                            Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(this, "Unable to add widget. Please add manually from widgets menu", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Unable to add widget", Toast.LENGTH_LONG).show();
                 }
             } else {
-                // Fallback for devices that don't support pinning
-                Toast.makeText(this, "Long press home screen → Widgets → MaxfitvipgymApp", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Long press home screen → Widgets → MaxFit",
+                        Toast.LENGTH_LONG).show();
             }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Check session is still valid
+        if (!sessionManager.isLoggedIn()) {
+            Intent intent = new Intent(this, GetStartedActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
         }
     }
 }

@@ -63,6 +63,14 @@ public class GetStartedActivity extends AppCompatActivity {
             startActivity(intent);
             finish(); // Close GetStartedActivity so it's not in the back stack
         });
+
+        // Add this in onCreate after setting up btnGetStarted
+        Button btnTest = new Button(this);
+        btnTest.setText("Test Database Connection");
+        btnTest.setOnClickListener(v -> {
+            Intent intent = new Intent(GetStartedActivity.this, TestConnectionActivity.class);
+            startActivity(intent);
+        });
     }
 
     // Optional: stop the auto-sliding when the activity is paused

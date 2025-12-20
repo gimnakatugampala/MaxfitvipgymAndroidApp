@@ -34,6 +34,26 @@ dependencies {
     implementation libs.material
     implementation libs.activity
     implementation libs.constraintlayout
+
+    // Supabase dependencies
+    implementation 'io.github.jan-tennert.supabase:postgrest-kt:2.0.0'
+    implementation 'io.github.jan-tennert.supabase:realtime-kt:2.0.0'
+    implementation 'io.github.jan-tennert.supabase:storage-kt:2.0.0'
+    implementation 'io.ktor:ktor-client-android:2.3.7'
+    implementation 'io.ktor:ktor-client-core:2.3.7'
+    implementation 'io.ktor:ktor-utils:2.3.7'
+
+    // Kotlin Coroutines
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+
+    // Gson for JSON parsing
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // OkHttp for networking
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
