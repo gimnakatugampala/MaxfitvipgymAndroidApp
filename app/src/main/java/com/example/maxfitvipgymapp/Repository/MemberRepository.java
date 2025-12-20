@@ -65,35 +65,45 @@ public class MemberRepository {
         return null;
     }
 
-    // ✅ NEW METHOD: Generate next member code
+    // ✅ FIXED: Generate next member code
     private String generateNextMemberCode() {
         try {
-            // Get all members ordered by code descending
-            String filter = "select=code&order=code.desc&limit=1";
+            // Get all members ordered by id descending to find the highest code
+            String filter = "order=id.desc&limit=100"; // Get last 100 to ensure we find highest code
             JSONArray result = client.select(SupabaseConfig.TABLE_MEMBERS, filter);
 
-            int nextNumber = 1; // Default to M_001
+            int maxNumber = 0; // Start from 0, will increment to 1 for first member
 
-            if (result.length() > 0) {
-                String lastCode = result.getJSONObject(0).optString("code", "");
+            // Iterate through all results to find the highest code number
+            for (int i = 0; i < result.length(); i++) {
+                String code = result.getJSONObject(i).optString("code", "");
 
                 // Extract number from code like "M_001"
-                if (lastCode != null && lastCode.startsWith("M_")) {
+                if (code != null && code.startsWith("M_")) {
                     try {
-                        String numberPart = lastCode.substring(2); // Remove "M_"
-                        int lastNumber = Integer.parseInt(numberPart);
-                        nextNumber = lastNumber + 1;
+                        String numberPart = code.substring(2); // Remove "M_"
+                        int codeNumber = Integer.parseInt(numberPart);
+                        if (codeNumber > maxNumber) {
+                            maxNumber = codeNumber;
+                        }
                     } catch (NumberFormatException e) {
-                        Log.w(TAG, "Could not parse code number from: " + lastCode);
+                        Log.w(TAG, "Could not parse code number from: " + code);
                     }
                 }
             }
 
+            // Increment to get next number
+            int nextNumber = maxNumber + 1;
+
             // Format as M_001, M_002, etc.
-            return String.format("M_%03d", nextNumber);
+            String generatedCode = String.format("M_%03d", nextNumber);
+            Log.d(TAG, "Generated member code: " + generatedCode + " (previous max: " + maxNumber + ")");
+
+            return generatedCode;
 
         } catch (Exception e) {
             Log.e(TAG, "Error generating member code: " + e.getMessage());
+            e.printStackTrace();
             // Return a timestamp-based code as fallback
             return "M_" + System.currentTimeMillis();
         }
