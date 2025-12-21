@@ -23,9 +23,7 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
-      
-
-        <!-- ✅ Widget Receiver - MUST be inside <application> -->
+        <!-- ✅ Widget Receiver -->
         <receiver
             android:name=".Widget.WorkoutWidgetProvider"
             android:exported="true"
@@ -38,14 +36,21 @@
                 android:resource="@xml/widget_info" />
         </receiver>
 
+        <!-- ✅ SPLASH ACTIVITY - NEW LAUNCHER -->
         <activity
-            android:name=".Activity.MainActivity"
-            android:exported="true" >
+            android:name=".Activity.SplashActivity"
+            android:exported="true"
+            android:theme="@style/SplashTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Main Activity -->
+        <activity
+            android:name=".Activity.MainActivity"
+            android:exported="false" />
 
         <activity android:name=".Activity.GetStartedActivity"/>
         <activity android:name=".Activity.PhoneNumberActivity"/>
