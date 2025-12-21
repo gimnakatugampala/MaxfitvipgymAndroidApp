@@ -243,6 +243,16 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     // ✅ NEW: Load today's workouts from database
+    // In WorkoutActivity.java, around line 360-380, replace the workout creation code with this:
+
+    // In WorkoutActivity.java, around line 360-380, replace the workout creation code with this:
+
+    // Replace the loadTodayWorkouts() method in WorkoutActivity.java
+// This fixes both cardio duration and strength workout timing issues
+
+    // Replace the loadTodayWorkouts() method in WorkoutActivity.java
+// This fixes both cardio duration and strength workout timing issues
+
     private void loadTodayWorkouts() {
         int memberId = sessionManager.getMemberId();
 
@@ -309,49 +319,81 @@ public class WorkoutActivity extends AppCompatActivity {
                     String description = (String) detail.get("description");
                     String imageUrl = (String) detail.get("image_url");
 
-                    // ✅ FIX: Parse duration correctly
-                    String durationStr = (String) detail.get("duration_minutes");
-                    int durationSeconds = 60; // default
-
-                    if (durationStr != null && !durationStr.isEmpty()) {
-                        try {
-                            int durationValue = Integer.parseInt(durationStr);
-
-                            // Smart conversion: small numbers = minutes, large = seconds
-                            if (durationValue <= 10) {
-                                durationSeconds = durationValue * 60;
-                                Log.d(TAG, "Duration: " + durationValue + " min → " + durationSeconds + " sec");
-                            } else {
-                                durationSeconds = durationValue;
-                                Log.d(TAG, "Duration: " + durationValue + " sec");
-                            }
-                        } catch (NumberFormatException e) {
-                            Log.w(TAG, "Invalid duration: " + durationStr);
-                        }
-                    }
-
-                    // Parse sets and reps
+                    // Parse sets, reps, and duration
                     String setStr = (String) detail.get("set_no");
                     String repStr = (String) detail.get("rep_no");
+                    String durationStr = (String) detail.get("duration_minutes");
 
                     List<Integer> repsPerSet = null;
                     boolean isDurationBased = true;
+                    int durationSeconds = 60; // default fallback
 
-                    // Determine workout type
-                    if (setStr != null && !setStr.isEmpty() && repStr != null && !repStr.isEmpty()) {
+                    // ✅ FIXED LOGIC: Check CARDIO first (duration_minutes), then STRENGTH (sets/reps)
+                    if (durationStr != null && !durationStr.isEmpty() && !durationStr.equals("0")) {
+                        // ========================================
+                        // CARDIO WORKOUT (Duration-based)
+                        // ========================================
                         try {
-                            int sets = Integer.parseInt(setStr);
-                            int reps = Integer.parseInt(repStr);
+                            int durationValue = Integer.parseInt(durationStr.trim());
 
-                            isDurationBased = false;
-                            repsPerSet = new ArrayList<>();
-                            for (int i = 0; i < sets; i++) {
-                                repsPerSet.add(reps);
+                            if (durationValue > 0) {
+                                // ✅ FIX: Database stores in MINUTES, convert to SECONDS
+                                durationSeconds = durationValue * 60;
+                                isDurationBased = true;
+                                repsPerSet = null;
+
+                                Log.d(TAG, "🏃 CARDIO: " + durationValue + " min → "
+                                        + durationSeconds + " sec (duration-based)");
+                            } else {
+                                Log.w(TAG, "⚠️ Duration is 0, treating as strength workout");
+                                throw new NumberFormatException("Duration is 0");
                             }
-                            Log.d(TAG, "Set-based: " + sets + " sets × " + reps + " reps");
+
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "Invalid duration: '" + durationStr + "', checking for sets/reps");
+                            // Fall through to check sets/reps
+                            durationStr = null; // Clear it so we check sets/reps below
+                        }
+                    }
+
+                    // If no valid duration, check for sets/reps (STRENGTH workout)
+                    if ((durationStr == null || durationStr.isEmpty() || durationStr.equals("0")) &&
+                            setStr != null && !setStr.isEmpty() && repStr != null && !repStr.isEmpty()) {
+                        // ========================================
+                        // STRENGTH WORKOUT (Set-based)
+                        // ========================================
+                        try {
+                            int sets = Integer.parseInt(setStr.trim());
+                            int reps = Integer.parseInt(repStr.trim());
+
+                            if (sets > 0 && reps > 0) {
+                                isDurationBased = false;
+                                repsPerSet = new ArrayList<>();
+                                for (int i = 0; i < sets; i++) {
+                                    repsPerSet.add(reps);
+                                }
+
+                                // ✅ FIX: Calculate duration for strength workouts
+                                // Estimate: 3 seconds per rep (adjustable)
+                                durationSeconds = reps * 3;
+
+                                Log.d(TAG, "💪 STRENGTH: " + sets + " sets × " + reps + " reps → "
+                                        + durationSeconds + " sec per set");
+                            }
+
                         } catch (NumberFormatException e) {
                             Log.w(TAG, "Invalid sets/reps: " + setStr + "/" + repStr);
+                            // Use default fallback
+                            durationSeconds = 60;
+                            isDurationBased = true;
                         }
+                    }
+
+                    // If still no valid workout data, use fallback
+                    if (durationSeconds <= 0 || (durationSeconds == 60 && !isDurationBased && repsPerSet == null)) {
+                        Log.w(TAG, "⚠️ No valid duration or sets/reps found, using default 60 sec");
+                        durationSeconds = 60;
+                        isDurationBased = true;
                     }
 
                     // Get workout videos
@@ -363,19 +405,34 @@ public class WorkoutActivity extends AppCompatActivity {
                         imageUrl = "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg";
                     }
 
-                    // ✅ Create Workout with rest time
+                    // Get rest time from database (default 60 seconds)
+                    int restSeconds = 60;
+                    Object restSecondsObj = detail.get("rest_seconds");
+                    if (restSecondsObj != null) {
+                        try {
+                            restSeconds = Integer.parseInt(restSecondsObj.toString());
+                            Log.d(TAG, "   Rest time: " + restSeconds + " sec");
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "Invalid rest_seconds, using default 60");
+                        }
+                    }
+
+                    // Create Workout object
                     Workout workout = new Workout(
                             workoutName != null ? workoutName : "Workout",
                             isDurationBased,
                             durationSeconds,
                             repsPerSet,
                             imageUrl,
-                            videoUrls,
-                            60 // 60 seconds rest between sets
+                            videoUrls
                     );
 
+                    // Set rest time
+                    workout.setRestSeconds(restSeconds);
+
                     workouts.add(workout);
-                    Log.d(TAG, "✅ Added: " + workout);
+                    Log.d(TAG, "✅ Added: " + (isDurationBased ? "CARDIO" : "STRENGTH")
+                            + " - " + workoutName + " (" + durationSeconds + "s)");
                 }
 
                 runOnUiThread(() -> {
@@ -1216,8 +1273,10 @@ public class WorkoutActivity extends AppCompatActivity {
         private List<Integer> repsPerSet;
         private String imageUrl;
         private List<String> youtubeUrls;
+        private int restSeconds = 60; // ✅ Default 60 seconds rest
 
-        public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet, String imageUrl, List<String> youtubeUrls) {
+        public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet,
+                       String imageUrl, List<String> youtubeUrls) {
             this.title = title;
             this.isDurationBased = isDurationBased;
             this.time = time;
@@ -1226,11 +1285,24 @@ public class WorkoutActivity extends AppCompatActivity {
             this.youtubeUrls = youtubeUrls;
         }
 
+        // ✅ ALL GETTERS
         public String getTitle() { return title; }
+        public String getName() { return title; } // Alias for getTitle
         public boolean isDurationBased() { return isDurationBased; }
+        public boolean isByDuration() { return isDurationBased; } // Alias
         public int getTime() { return time; }
+        public int getDuration() { return time; } // Alias for getTime
         public List<Integer> getRepsPerSet() { return repsPerSet; }
         public String getImageUrl() { return imageUrl; }
         public List<String> getYoutubeUrls() { return youtubeUrls; }
+
+        // ✅ REST TIME METHODS (THIS WAS MISSING!)
+        public int getRestSeconds() { return restSeconds; }
+        public void setRestSeconds(int restSeconds) { this.restSeconds = restSeconds; }
+
+        // ✅ HELPER METHOD
+        public boolean hasValidReps() {
+            return repsPerSet != null && !repsPerSet.isEmpty();
+        }
     }
 }

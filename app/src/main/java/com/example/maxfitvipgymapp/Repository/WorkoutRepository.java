@@ -126,6 +126,8 @@ public class WorkoutRepository {
     }
 
     // Get member's workout schedule details
+    // Replace the getMemberWorkoutScheduleDetails() method in WorkoutRepository.java
+
     public List<Map<String, Object>> getMemberWorkoutScheduleDetails(int memberScheduleId, String day) {
         List<Map<String, Object>> workouts = new ArrayList<>();
         try {
@@ -142,11 +144,18 @@ public class WorkoutRepository {
                 workout.put("set_no", obj.optString("set_no"));
                 workout.put("rep_no", obj.optString("rep_no"));
 
-                // ✅ FIX: Parse duration_minutes correctly
+                // ✅ Parse duration_minutes (stored in MINUTES in DB)
                 String durationStr = obj.optString("duration_minutes");
                 workout.put("duration_minutes", durationStr);
 
-                Log.d(TAG, "  📝 Workout detail: duration_minutes='" + durationStr + "', set_no='" + obj.optString("set_no") + "', rep_no='" + obj.optString("rep_no") + "'");
+                // ✅ NEW: Get rest_seconds from database (default 60)
+                int restSeconds = obj.optInt("rest_seconds", 60);
+                workout.put("rest_seconds", restSeconds);
+
+                Log.d(TAG, "  📝 Workout detail: duration='" + durationStr + " min', " +
+                        "set='" + obj.optString("set_no") + "', " +
+                        "rep='" + obj.optString("rep_no") + "', " +
+                        "rest=" + restSeconds + "s");
 
                 workout.put("completed", obj.optBoolean("completed"));
                 workout.put("is_rest_day", obj.optBoolean("is_rest_day"));
