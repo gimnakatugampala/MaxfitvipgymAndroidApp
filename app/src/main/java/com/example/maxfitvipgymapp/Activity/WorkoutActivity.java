@@ -1304,9 +1304,15 @@ public class WorkoutActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // ✅ Stop TTS when app goes to background
-        if (tts != null && tts.isSpeaking()) {
-            tts.stop();
+        // ✅ Workout continues in background
+        Log.d(TAG, "Activity paused - workout continues");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (timerRunnable != null && isRunning) {
+            updateTimerText();
         }
     }
 
