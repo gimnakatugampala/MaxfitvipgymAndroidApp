@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -24,6 +25,7 @@ import com.example.maxfitvipgymapp.Fragments.HomeFragment;
 import com.example.maxfitvipgymapp.Fragments.InsightsFragment;
 import com.example.maxfitvipgymapp.Fragments.ProfileFragment;
 import com.example.maxfitvipgymapp.Repository.MemberRepository;
+import com.example.maxfitvipgymapp.Service.PresenceService;
 import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.example.maxfitvipgymapp.Widget.WorkoutWidgetProvider;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -55,6 +57,11 @@ public class MainActivity extends AppCompatActivity {
         if (!sessionManager.isLoggedIn()) {
             redirectToLogin();
             return;
+        }
+
+        // ✅ Start presence tracking service
+        if (sessionManager.isLoggedIn()) {
+            startPresenceTracking();
         }
 
         // ✅ Check if user is approved (is_active = true)
@@ -129,6 +136,13 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         });
+    }
+
+
+    private void startPresenceTracking() {
+        Intent presenceIntent = new Intent(this, PresenceService.class);
+        startService(presenceIntent);
+        Log.d("MainActivity", "✅ Presence tracking started");
     }
 
     private void redirectToLogin() {

@@ -23,6 +23,10 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <service
+            android:name=".Service.PresenceService"
+            android:exported="false" />
+
         <!-- ✅ Widget Receiver - MUST be inside <application> -->
         <receiver
             android:name=".Widget.WorkoutWidgetProvider"
