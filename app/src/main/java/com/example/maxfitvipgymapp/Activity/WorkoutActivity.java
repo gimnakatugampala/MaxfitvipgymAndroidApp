@@ -18,7 +18,6 @@ import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.PowerManager;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
@@ -64,6 +63,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
+// ✅ Add these imports to WorkoutActivity.java
 import com.example.maxfitvipgymapp.Repository.WorkoutCompletionRepository;
 
 import static com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade;
@@ -94,9 +95,6 @@ public class WorkoutActivity extends AppCompatActivity {
     private GestureDetector gestureDetector;
     private boolean isResting = false;
 
-    // ✅ WakeLock to prevent CPU sleep
-    private PowerManager.WakeLock wakeLock;
-
     // ✅ Text-to-Speech variables
     private TextToSpeech tts;
     private boolean isTTSReady = false;
@@ -124,17 +122,8 @@ public class WorkoutActivity extends AppCompatActivity {
     private BroadcastReceiver timerUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-
-            if ("TIMER_UPDATE".equals(action)) {
-                int timeLeft = intent.getIntExtra("timeLeft", 0);
-                runOnUiThread(() -> updateTimerText(timeLeft));
-
-            } else if ("TIMER_COMPLETE".equals(action)) {
-                // Timer completed in service
-                Log.d(TAG, "⏰ Timer complete received from service");
-                runOnUiThread(() -> handleTimerCompletion());
-            }
+            int timeLeft = intent.getIntExtra("timeLeft", 0);
+            updateTimerText(timeLeft);
         }
     };
 
@@ -146,33 +135,15 @@ public class WorkoutActivity extends AppCompatActivity {
         return super.onTouchEvent(event);
     }
 
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_workout);
 
-        // ✅ CRITICAL: Acquire WakeLock to prevent CPU sleep during workouts
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK,
-                "WorkoutApp::WorkoutWakeLock"
-        );
-        wakeLock.acquire(3600000); // 1 hour max
-        Log.d(TAG, "✅ WakeLock acquired - CPU will stay awake");
-
-        // Register receiver for both TIMER_UPDATE and TIMER_COMPLETE
         if (!isReceiverRegistered) {
-            IntentFilter filter = new IntentFilter();
-            filter.addAction("TIMER_UPDATE");
-            filter.addAction("TIMER_COMPLETE");
-            LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, filter);
+            LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
             isReceiverRegistered = true;
         }
-
-
-
 
         // ✅ Initialize repositories
         workoutRepository = new WorkoutRepository();
@@ -180,6 +151,7 @@ public class WorkoutActivity extends AppCompatActivity {
         sessionManager = new SessionManager(this);
 
         workoutCompletionRepository = new WorkoutCompletionRepository();
+
 
         // ✅ Initialize AudioManager first
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -279,6 +251,17 @@ public class WorkoutActivity extends AppCompatActivity {
         loadTodayWorkouts();
     }
 
+    // ✅ NEW: Load today's workouts from database
+    // In WorkoutActivity.java, around line 360-380, replace the workout creation code with this:
+
+    // In WorkoutActivity.java, around line 360-380, replace the workout creation code with this:
+
+    // Replace the loadTodayWorkouts() method in WorkoutActivity.java
+// This fixes both cardio duration and strength workout timing issues
+
+    // Replace the loadTodayWorkouts() method in WorkoutActivity.java
+// This fixes both cardio duration and strength workout timing issues
+
     private void loadTodayWorkouts() {
         int memberId = sessionManager.getMemberId();
 
@@ -356,6 +339,9 @@ public class WorkoutActivity extends AppCompatActivity {
 
                     // ✅ FIXED LOGIC: Check CARDIO first (duration_minutes), then STRENGTH (sets/reps)
                     if (durationStr != null && !durationStr.isEmpty() && !durationStr.equals("0")) {
+                        // ========================================
+                        // CARDIO WORKOUT (Duration-based)
+                        // ========================================
                         try {
                             int durationValue = Integer.parseInt(durationStr.trim());
 
@@ -374,13 +360,17 @@ public class WorkoutActivity extends AppCompatActivity {
 
                         } catch (NumberFormatException e) {
                             Log.w(TAG, "Invalid duration: '" + durationStr + "', checking for sets/reps");
-                            durationStr = null;
+                            // Fall through to check sets/reps
+                            durationStr = null; // Clear it so we check sets/reps below
                         }
                     }
 
                     // If no valid duration, check for sets/reps (STRENGTH workout)
                     if ((durationStr == null || durationStr.isEmpty() || durationStr.equals("0")) &&
                             setStr != null && !setStr.isEmpty() && repStr != null && !repStr.isEmpty()) {
+                        // ========================================
+                        // STRENGTH WORKOUT (Set-based)
+                        // ========================================
                         try {
                             int sets = Integer.parseInt(setStr.trim());
                             int reps = Integer.parseInt(repStr.trim());
@@ -392,7 +382,8 @@ public class WorkoutActivity extends AppCompatActivity {
                                     repsPerSet.add(reps);
                                 }
 
-                                // ✅ FIX: Calculate duration for strength workouts (3 seconds per rep)
+                                // ✅ FIX: Calculate duration for strength workouts
+                                // Estimate: 3 seconds per rep (adjustable)
                                 durationSeconds = reps * 3;
 
                                 Log.d(TAG, "💪 STRENGTH: " + sets + " sets × " + reps + " reps → "
@@ -401,6 +392,7 @@ public class WorkoutActivity extends AppCompatActivity {
 
                         } catch (NumberFormatException e) {
                             Log.w(TAG, "Invalid sets/reps: " + setStr + "/" + repStr);
+                            // Use default fallback
                             durationSeconds = 60;
                             isDurationBased = true;
                         }
@@ -472,6 +464,7 @@ public class WorkoutActivity extends AppCompatActivity {
         });
     }
 
+    // ✅ FIXED: Initialize Text-to-Speech with proper error handling
     private void initializeTextToSpeech() {
         Log.d(TAG, "Initializing TTS...");
 
@@ -487,14 +480,17 @@ public class WorkoutActivity extends AppCompatActivity {
                     return;
                 }
 
+                // ✅ Load settings
                 voiceGuidanceEnabled = WorkoutSettingsActivity.isVoiceGuidanceEnabled(this);
                 float speechRate = WorkoutSettingsActivity.getSpeechRate(this);
                 float speechPitch = WorkoutSettingsActivity.getSpeechPitch(this);
                 countdownVoiceStart = WorkoutSettingsActivity.getCountdownStart(this);
 
+                // ✅ Configure TTS
                 tts.setSpeechRate(speechRate);
                 tts.setPitch(speechPitch);
 
+                // ✅ CRITICAL: Use STREAM_MUSIC for audio output
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -504,6 +500,7 @@ public class WorkoutActivity extends AppCompatActivity {
                     tts.setAudioAttributes(audioAttributes);
                 }
 
+                // ✅ Set up utterance listener
                 tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override
                     public void onStart(String utteranceId) {
@@ -524,6 +521,7 @@ public class WorkoutActivity extends AppCompatActivity {
                 isTTSReady = true;
                 Log.d(TAG, "✅ TTS ready - Voice guidance: " + voiceGuidanceEnabled);
 
+                // ✅ Increase media volume if too low
                 if (audioManager != null) {
                     int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
                     int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
@@ -535,6 +533,7 @@ public class WorkoutActivity extends AppCompatActivity {
                     }
                 }
 
+                // ✅ Test TTS immediately
                 runOnUiThread(() -> testTTS());
 
             } else {
@@ -545,12 +544,14 @@ public class WorkoutActivity extends AppCompatActivity {
         });
     }
 
+    // ✅ NEW: Test TTS to verify it's working
     private void testTTS() {
         if (!isTTSReady) {
             Log.e(TAG, "❌ Cannot test TTS - not ready");
             return;
         }
 
+        // ✅ FORCE MAXIMUM MEDIA VOLUME
         if (audioManager != null) {
             int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
             int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
@@ -582,6 +583,7 @@ public class WorkoutActivity extends AppCompatActivity {
         }, 2000);
     }
 
+    // ✅ FIXED: Abandon audio focus properly
     private void abandonAudioFocus() {
         if (audioManager == null) return;
 
@@ -594,6 +596,7 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
+    // ✅ FIXED: Speak with proper parameters and logging
     private void speak(String text) {
         if (!isTTSReady) {
             Log.w(TAG, "TTS not ready, cannot speak: " + text);
@@ -631,6 +634,9 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
+    // ✅ Announce workout start
+    // ✅ Announce workout start
+    // ✅ Announce workout start - FIXED
     private void announceWorkoutStart(Workout workout) {
         if (!isTTSReady || !voiceGuidanceEnabled) {
             Log.d(TAG, "TTS not ready or voice disabled");
@@ -639,9 +645,11 @@ public class WorkoutActivity extends AppCompatActivity {
 
         String announcement;
         if (workout.isByDuration() || !workout.hasValidReps()) {
+            // Duration-based workout
             announcement = String.format("Starting %s. Duration: %d seconds. Go!",
                     workout.getName(), workout.getDuration());
         } else {
+            // Set-based workout
             int reps = workout.getRepsPerSet().get(currentSet - 1);
             announcement = String.format("Starting %s. Set %d of %d. %d repetitions. Go!",
                     workout.getName(), currentSet, workout.getRepsPerSet().size(), reps);
@@ -651,17 +659,20 @@ public class WorkoutActivity extends AppCompatActivity {
         speak(announcement);
     }
 
+    // ✅ Announce rest period
     private void announceRestPeriod(int seconds, String nextActivity) {
         String announcement = String.format("Rest for %d seconds. Next: %s", seconds, nextActivity);
         speak(announcement);
     }
 
+    // ✅ Announce countdown
     private void announceCountdown(int seconds) {
         if (countdownNumbers.contains(seconds)) {
             speak(String.valueOf(seconds));
         }
     }
 
+    // ✅ Announce set completion
     private void announceSetCompletion(int completedSet, int totalSets) {
         String announcement;
         if (completedSet < totalSets) {
@@ -672,6 +683,7 @@ public class WorkoutActivity extends AppCompatActivity {
         speak(announcement);
     }
 
+    // ✅ Announce workout completion
     private void announceWorkoutCompletion() {
         speak("Workout complete! Excellent work!");
     }
@@ -717,6 +729,12 @@ public class WorkoutActivity extends AppCompatActivity {
         completedSets.clear();
         isResting = false;
 
+        Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workout.getTitle());
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, workout.getTime());
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, false);
+        startService(serviceIntent);
+
         Glide.with(this)
                 .load(workout.getImageUrl())
                 .transition(withCrossFade())
@@ -732,12 +750,12 @@ public class WorkoutActivity extends AppCompatActivity {
         }
 
         scrollContainer.post(() -> scrollContainer.smoothScrollTo(0, 0));
+
         playPauseButton.setImageResource(R.drawable.pause);
 
-        // Announce workout start
+        // ✅ Announce workout start after 2 second delay
         new Handler().postDelayed(() -> announceWorkoutStart(workout), 2000);
 
-        // Start timer via service
         startTimer();
     }
 
@@ -749,21 +767,31 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void startTimer() {
-        if (workouts.isEmpty() || currentWorkoutIndex >= workouts.size()) {
-            return;
-        }
+        stopTimer();
 
-        Workout current = workouts.get(currentWorkoutIndex);
+        timerRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (timeLeft > 0) {
+                    updateTimerText();
+                    updateServiceTimer();
 
-        Log.d(TAG, "🚀 Starting timer via service: " + current.getTitle() + " (" + timeLeft + "s)");
+                    // ✅ Announce countdown numbers
+                    if (timeLeft <= countdownVoiceStart) {
+                        announceCountdown(timeLeft);
+                    }
 
-        Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_ACTION, WorkoutForegroundService.ACTION_START_TIMER);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, current.getTitle());
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, isResting);
-        startService(serviceIntent);
+                    timeLeft--;
+                    timerHandler.postDelayed(this, 1000);
+                } else {
+                    handleTimerCompletion();
+                }
+            }
+        };
 
+        updateTimerText();
+        updateServiceTimer();
+        timerHandler.postDelayed(timerRunnable, 1000);
         isRunning = true;
     }
 
@@ -780,12 +808,8 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void stopTimer() {
-        Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_ACTION, WorkoutForegroundService.ACTION_PAUSE_TIMER);
-        startService(serviceIntent);
-
+        timerHandler.removeCallbacks(timerRunnable);
         isRunning = false;
-        Log.d(TAG, "⏸️ Timer paused via service");
     }
 
     private void updateTimerText() {
@@ -802,29 +826,15 @@ public class WorkoutActivity extends AppCompatActivity {
         Workout current = workouts.get(currentWorkoutIndex);
         playSoundEffect();
 
-        if (isResting && isTransitioning) {
-            // Rest between workouts complete - move to next workout
-            Log.d(TAG, "✅ Rest complete, moving to next workout");
-            currentWorkoutIndex++;
-            isResting = false;
-            isTransitioning = false;
-
-            runOnUiThread(() -> {
-                animateWorkoutTransition(() -> {
-                    setupWorkout();
-                });
-            });
-            return;
-        }
-
         if (!current.isByDuration() && current.hasValidReps()) {
             if (isResting) {
-                // Rest between sets complete
+                // Rest complete, start next set
                 isResting = false;
                 currentSet++;
                 timeLeft = current.getDuration();
                 workoutTitle.setText(current.getName());
                 updateSetInfo();
+                updateServiceTimer();
 
                 announceWorkoutStart(current);
                 startTimer();
@@ -836,11 +846,12 @@ public class WorkoutActivity extends AppCompatActivity {
                 if (currentSet < current.getRepsPerSet().size()) {
                     // More sets - rest period
                     isResting = true;
-                    timeLeft = current.getRestSeconds();
+                    timeLeft = current.getRestSeconds(); // ✅ Use workout's rest time
                     workoutTitle.setText("REST - " + current.getName());
                     setInfoText.setText("Rest before Set " + (currentSet + 1));
 
                     announceRestPeriod(timeLeft, "Set " + (currentSet + 1));
+                    updateServiceTimer();
                     startTimer();
                 } else {
                     // All sets done
@@ -857,47 +868,55 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
-    // ✅✅✅ CRITICAL FIX: Remove stopService() during transitions ✅✅✅
     private void moveToNextWorkout() {
         if (isTransitioning) return;
         isTransitioning = true;
 
         if (currentWorkoutIndex < workouts.size() - 1) {
-            // ✅ MORE WORKOUTS - Setup rest period
             isResting = true;
             timeLeft = 60;
+            timerText.setText("1:00");
+            workoutTitle.setText("REST");
+            setInfoText.setText("Rest before next workout");
+            setInfoText.setVisibility(View.VISIBLE);
 
-            runOnUiThread(() -> {
-                timerText.setText("1:00");
-                workoutTitle.setText("REST");
-                setInfoText.setText("Rest before next workout");
-                setInfoText.setVisibility(View.VISIBLE);
-            });
-
+            // ✅ Announce rest before next workout
             announceRestPeriod(60, workouts.get(currentWorkoutIndex + 1).getTitle());
 
-            // Start rest timer via service
-            Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_ACTION, WorkoutForegroundService.ACTION_START_TIMER);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, "REST");
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, 60);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, true);
-            startService(serviceIntent);
+            timerRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (timeLeft > 0) {
+                        updateTimerText();
+                        updateServiceTimer();
 
-            // Timer completion will be handled by TIMER_COMPLETE broadcast
+                        // ✅ Countdown announcements
+                        if (timeLeft <= countdownVoiceStart) {
+                            announceCountdown(timeLeft);
+                        }
 
+                        timeLeft--;
+                        timerHandler.postDelayed(this, 1000);
+                    } else {
+                        currentWorkoutIndex++;
+                        isResting = false;
+                        animateWorkoutTransition(() -> {
+                            setupWorkout();
+                            isTransitioning = false;
+                        });
+                        stopService(new Intent(WorkoutActivity.this, WorkoutForegroundService.class));
+                    }
+                }
+            };
+
+            updateTimerText();
+            updateServiceTimer();
+            timerHandler.postDelayed(timerRunnable, 1000);
         } else {
-            // ✅ ALL WORKOUTS COMPLETE
             updateStreak();
             updateWidget();
             sendWorkoutCompletedNotification();
-
-            runOnUiThread(() -> showCelebrationAnimation());
-
-            // Stop service
-            Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_ACTION, WorkoutForegroundService.ACTION_STOP_SERVICE);
-            startService(serviceIntent);
+            showCelebrationAnimation();
         }
     }
 
@@ -919,16 +938,18 @@ public class WorkoutActivity extends AppCompatActivity {
         TextView streakInfo = celebrationView.findViewById(R.id.streakInfo);
         Button btnContinue = celebrationView.findViewById(R.id.btnContinueToDashboard);
 
+        // ✅ Save workout completion to database
         int memberId = sessionManager.getMemberId();
         int totalDuration = 0;
         int workoutCount = workouts.size();
 
         for (Workout workout : workouts) {
-            totalDuration += (workout.getDuration() / 60);
+            totalDuration += (workout.getDuration() / 60); // Convert seconds to minutes
         }
 
         final int finalTotalDuration = totalDuration;
 
+        // Save to database in background
         executorService.execute(() -> {
             boolean saved = workoutCompletionRepository.recordWorkoutCompletion(
                     memberId,
@@ -942,12 +963,16 @@ public class WorkoutActivity extends AppCompatActivity {
                 Log.e(TAG, "❌ Failed to save workout completion");
             }
 
+            // ✅ Get fresh streak from database
             int currentStreak = workoutCompletionRepository.calculateCurrentStreak(memberId);
 
             runOnUiThread(() -> {
                 streakInfo.setText("🔥 " + currentStreak + " Day Streak!");
             });
         });
+
+        // ✅ DEPRECATED: Remove SharedPreferences streak logic
+        // The streak is now calculated from database
 
         String[] messages = {
                 "You're crushing it!",
@@ -961,6 +986,7 @@ public class WorkoutActivity extends AppCompatActivity {
         int randomIndex = (int) (Math.random() * messages.length);
         celebrationMessage.setText(messages[randomIndex]);
 
+        // Animations
         celebrationIcon.setScaleX(0f);
         celebrationIcon.setScaleY(0f);
         celebrationIcon.setAlpha(0f);
@@ -1026,6 +1052,7 @@ public class WorkoutActivity extends AppCompatActivity {
         btnContinue.setOnClickListener(v -> {
             dialog.dismiss();
 
+            // ✅ Update widget with database streak
             updateWidget();
 
             Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
@@ -1247,30 +1274,21 @@ public class WorkoutActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        // Release WakeLock
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-            Log.d(TAG, "✅ WakeLock released");
-        }
-
-        // Stop service
-        Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_ACTION, WorkoutForegroundService.ACTION_STOP_SERVICE);
-        startService(serviceIntent);
-
-        // Clean up TTS
+        // ✅ Clean up Text-to-Speech
         if (tts != null) {
             tts.stop();
             tts.shutdown();
             Log.d(TAG, "TTS shut down");
         }
 
+        // ✅ Abandon audio focus
         abandonAudioFocus();
 
         if (mediaPlayer != null) {
             mediaPlayer.release();
         }
 
+        // ✅ Shutdown executor
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
         }
@@ -1286,7 +1304,8 @@ public class WorkoutActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        Log.d(TAG, "Activity paused - workout continues in background");
+        // ✅ Workout continues in background
+        Log.d(TAG, "Activity paused - workout continues");
     }
 
     @Override
@@ -1297,6 +1316,7 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
+    // ✅ Inner Workout class
     static class Workout {
         private String title;
         private boolean isDurationBased;
@@ -1304,7 +1324,7 @@ public class WorkoutActivity extends AppCompatActivity {
         private List<Integer> repsPerSet;
         private String imageUrl;
         private List<String> youtubeUrls;
-        private int restSeconds = 60;
+        private int restSeconds = 60; // ✅ Default 60 seconds rest
 
         public Workout(String title, boolean isDurationBased, int time, List<Integer> repsPerSet,
                        String imageUrl, List<String> youtubeUrls) {
@@ -1316,19 +1336,22 @@ public class WorkoutActivity extends AppCompatActivity {
             this.youtubeUrls = youtubeUrls;
         }
 
+        // ✅ ALL GETTERS
         public String getTitle() { return title; }
-        public String getName() { return title; }
+        public String getName() { return title; } // Alias for getTitle
         public boolean isDurationBased() { return isDurationBased; }
-        public boolean isByDuration() { return isDurationBased; }
+        public boolean isByDuration() { return isDurationBased; } // Alias
         public int getTime() { return time; }
-        public int getDuration() { return time; }
+        public int getDuration() { return time; } // Alias for getTime
         public List<Integer> getRepsPerSet() { return repsPerSet; }
         public String getImageUrl() { return imageUrl; }
         public List<String> getYoutubeUrls() { return youtubeUrls; }
 
+        // ✅ REST TIME METHODS (THIS WAS MISSING!)
         public int getRestSeconds() { return restSeconds; }
         public void setRestSeconds(int restSeconds) { this.restSeconds = restSeconds; }
 
+        // ✅ HELPER METHOD
         public boolean hasValidReps() {
             return repsPerSet != null && !repsPerSet.isEmpty();
         }
