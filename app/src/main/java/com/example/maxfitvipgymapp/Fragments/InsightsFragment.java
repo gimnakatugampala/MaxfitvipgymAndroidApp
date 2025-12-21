@@ -29,7 +29,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
+import com.google.android.material.card.MaterialCardView;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -56,8 +56,6 @@ public class InsightsFragment extends Fragment {
     private int memberId;
 
     // UI Elements
-    private TextView healthGradeValue;
-    private ProgressBar loadingProgress;
     private View healthGradeCard;
 
     // Current period selection
@@ -153,8 +151,11 @@ public class InsightsFragment extends Fragment {
 
         Log.d(TAG, "Loading all data for member: " + memberId);
 
-        // Load stats
+        // Load stats grid
         loadLatestStats();
+
+        // Load health grade
+        calculateHealthGrade();
 
         // Load charts with default period
         loadChartData(currentPeriod, currentDays);
@@ -189,6 +190,93 @@ public class InsightsFragment extends Fragment {
         dateRecyclerView.scrollToPosition(selectedIndex);
     }
 
+    private void calculateHealthGrade() {
+        executorService.execute(() -> {
+            try {
+                // 1. Get Consistency Data (Last 30 Days)
+                List<String> recentDates = workoutCompletionRepository.getCompletionDates(memberId, 1); // 1 Month
+                int workoutsLast30Days = recentDates.size();
+
+                // 2. Get Streak & Effort Data
+                Map<String, Object> stats = workoutCompletionRepository.getWorkoutStats(memberId);
+                int currentStreak = 0;
+                int totalDuration = 0;
+                int totalWorkouts = 0;
+
+                if (stats != null) {
+                    if (stats.containsKey("current_streak")) currentStreak = (int) stats.get("current_streak");
+                    if (stats.containsKey("total_duration_minutes")) totalDuration = (int) stats.get("total_duration_minutes");
+                    if (stats.containsKey("total_workouts")) totalWorkouts = (int) stats.get("total_workouts");
+                }
+
+                // 3. Calculate Score (0-100)
+
+                // Factor A: Frequency (Max 60 pts)
+                // Target: 12 workouts/month (3 times a week)
+                double frequencyScore = Math.min((workoutsLast30Days / 12.0) * 60, 60.0);
+
+                // Factor B: Streak (Max 20 pts)
+                // Target: 10 day streak
+                double streakScore = Math.min((currentStreak / 10.0) * 20, 20.0);
+
+                // Factor C: Effort (Max 20 pts)
+                // Target: Average 45 mins per workout
+                double avgDuration = totalWorkouts > 0 ? (double) totalDuration / totalWorkouts : 0;
+                double effortScore = Math.min((avgDuration / 45.0) * 20, 20.0);
+
+                int totalScore = (int) (frequencyScore + streakScore + effortScore);
+
+                // 4. Determine Styling
+                String subtitle;
+                int colorCode;
+
+                if (totalScore >= 80) {
+                    subtitle = "Elite Athlete status! You are crushing your goals.";
+                    colorCode = Color.parseColor("#4CAF50"); // Green
+                } else if (totalScore >= 60) {
+                    subtitle = "Excellent consistency. Keep pushing to the next level!";
+                    colorCode = Color.parseColor("#FFD300"); // Yellow (Brand Color)
+                } else if (totalScore >= 40) {
+                    subtitle = "Good start. Try to workout at least 3 times a week.";
+                    colorCode = Color.parseColor("#FF9800"); // Orange
+                } else {
+                    subtitle = "Start your journey today. Consistency is the key to success!";
+                    colorCode = Color.parseColor("#FF5722"); // Red
+                }
+
+                // 5. Update UI
+                if (!isAdded() || getActivity() == null) return;
+
+                int finalScore = totalScore;
+                getActivity().runOnUiThread(() -> {
+                    if (healthGradeCard == null) return;
+
+                    // Locate views inside the included card layout
+                    TextView gradeSubtitle = healthGradeCard.findViewById(R.id.health_subtitle);
+                    MaterialCardView scoreCircle = healthGradeCard.findViewById(R.id.health_score_circle);
+
+                    if (gradeSubtitle != null) {
+                        gradeSubtitle.setText(subtitle);
+                    }
+
+                    if (scoreCircle != null) {
+                        scoreCircle.setStrokeColor(colorCode);
+
+                        // The TextView is the first child of the MaterialCardView in the XML
+                        if (scoreCircle.getChildCount() > 0 && scoreCircle.getChildAt(0) instanceof TextView) {
+                            TextView scoreText = (TextView) scoreCircle.getChildAt(0);
+                            scoreText.setText(String.valueOf(finalScore));
+                            scoreText.setTextColor(colorCode);
+                        }
+                    }
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error calculating health grade", e);
+            }
+        });
+    }
+
     private void loadLatestStats() {
         if (!isAdded()) return;
 
@@ -206,7 +294,8 @@ public class InsightsFragment extends Fragment {
                     if (view == null) return;
 
                     GridLayout statsGrid = view.findViewById(R.id.stats_grid);
-                    statsGrid.removeAllViews();
+                    // NOTE: Do NOT clear views here to avoid race conditions.
+                    // Views are cleared in loadWorkoutStatsForGrid.
 
                     // Get workout completion stats
                     loadWorkoutStatsForGrid(statsGrid, stats);
@@ -231,6 +320,9 @@ public class InsightsFragment extends Fragment {
                 if (!isAdded() || getActivity() == null) return;
 
                 getActivity().runOnUiThread(() -> {
+                    // FIX: Clear views here immediately before adding new ones
+                    statsGrid.removeAllViews();
+
                     // Define icons
                     int[] icons = {
                             R.drawable.workout,      // Total Days
@@ -295,15 +387,8 @@ public class InsightsFragment extends Fragment {
         executorService.execute(() -> {
             try {
                 Map<String, Object> workoutStats = workoutCompletionRepository.getWorkoutStats(memberId);
-
-                int totalDays = (int) workoutStats.getOrDefault("total_days", 0);
-                int totalWorkouts = (int) workoutStats.getOrDefault("total_workouts", 0);
-                int totalDuration = (int) workoutStats.getOrDefault("total_duration_minutes", 0);
-                int currentStreak = (int) workoutStats.getOrDefault("current_streak", 0);
-
-                Log.d(TAG, "Workout Stats - Days: " + totalDays + ", Workouts: " + totalWorkouts +
-                        ", Duration: " + totalDuration + " min, Streak: " + currentStreak);
-
+                // Logging for debug purposes
+                Log.d(TAG, "Workout Stats loaded: " + workoutStats.toString());
             } catch (Exception e) {
                 Log.e(TAG, "Error loading workout stats", e);
             }
@@ -330,11 +415,6 @@ public class InsightsFragment extends Fragment {
                 List<Map<String, Object>> chestProgress =
                         progressRepository.getChestProgress(memberId, days);
 
-                Log.d(TAG, "Fetched data - Weight: " + weightProgress.size() +
-                        ", Bicep: " + bicepProgress.size() +
-                        ", Hip: " + hipProgress.size() +
-                        ", Chest: " + chestProgress.size());
-
                 // Convert to chart entries
                 List<Entry> weightEntries = convertToEntries(weightProgress);
                 List<Entry> bicepEntries = convertToEntries(bicepProgress);
@@ -348,17 +428,10 @@ public class InsightsFragment extends Fragment {
                     setupChart(bicepChart, bicepEntries, "Bicep (cm)", Color.parseColor("#FF5722"));
                     setupChart(hipChart, hipEntries, "Hip (cm)", Color.parseColor("#009688"));
                     setupChart(chestChart, chestEntries, "Chest (cm)", Color.parseColor("#3F51B5"));
-
-                    Log.d(TAG, "✅ Charts updated successfully");
                 });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading chart data", e);
-                if (isAdded() && getActivity() != null) {
-                    getActivity().runOnUiThread(() ->
-                            Toast.makeText(getContext(), "Error loading chart data", Toast.LENGTH_SHORT).show()
-                    );
-                }
             }
         });
     }
@@ -367,7 +440,6 @@ public class InsightsFragment extends Fragment {
         List<Entry> entries = new ArrayList<>();
 
         if (progress == null || progress.isEmpty()) {
-            Log.d(TAG, "No progress data to convert");
             return entries;
         }
 
@@ -388,7 +460,6 @@ public class InsightsFragment extends Fragment {
                     try {
                         value = Double.parseDouble((String) valueObj);
                     } catch (NumberFormatException e) {
-                        Log.w(TAG, "Could not parse value: " + valueObj);
                         continue;
                     }
                 }
@@ -396,8 +467,6 @@ public class InsightsFragment extends Fragment {
                 entries.add(new Entry(i, (float) value));
             }
         }
-
-        Log.d(TAG, "Converted " + progress.size() + " items to " + entries.size() + " entries");
         return entries;
     }
 
@@ -405,7 +474,6 @@ public class InsightsFragment extends Fragment {
         if (chart == null) return;
 
         if (entries.isEmpty()) {
-            // Show empty chart
             chart.clear();
             chart.setNoDataText("No data available for " + label);
             chart.setNoDataTextColor(Color.WHITE);
@@ -431,12 +499,9 @@ public class InsightsFragment extends Fragment {
         // Chart styling
         chart.getDescription().setEnabled(false);
         chart.setTouchEnabled(true);
-        chart.setPinchZoom(true);
-        chart.setScaleEnabled(true);
         chart.setDrawGridBackground(false);
         chart.setBackgroundColor(Color.BLACK);
 
-        // X Axis
         XAxis xAxis = chart.getXAxis();
         xAxis.setTextColor(Color.WHITE);
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
@@ -444,16 +509,12 @@ public class InsightsFragment extends Fragment {
         xAxis.setGridColor(Color.argb(50, 255, 255, 255));
         xAxis.setGranularity(1f);
 
-        // Y Axis Left
         YAxis yAxisLeft = chart.getAxisLeft();
         yAxisLeft.setTextColor(Color.WHITE);
         yAxisLeft.setDrawGridLines(true);
         yAxisLeft.setGridColor(Color.argb(50, 255, 255, 255));
 
-        // Y Axis Right
-        YAxis yAxisRight = chart.getAxisRight();
-        yAxisRight.setEnabled(false);
-
+        chart.getAxisRight().setEnabled(false);
         chart.getLegend().setEnabled(false);
         chart.animateX(500);
         chart.invalidate();
@@ -462,7 +523,6 @@ public class InsightsFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Refresh data when fragment becomes visible
         if (memberId != -1) {
             loadAllData();
         }
