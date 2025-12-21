@@ -699,6 +699,7 @@ public class HomeFragment extends Fragment {
     }
 
     // ✅ UPDATED: Start workout with today's actual schedule
+    // ✅ UPDATED: Start workout with today's actual schedule
     private void showWorkoutStartDialog() {
         // Double-check all conditions
         if (!hasActiveSchedule) {
@@ -738,8 +739,11 @@ public class HomeFragment extends Fragment {
             }
         }
 
+        // ✅ Make totalDuration effectively final by creating a final copy
+        final int finalTotalDuration = totalDuration;
+
         String message = String.format("Today's workout (%s):\n\n%d exercises\nTotal duration: ~%d minutes\n\nAre you ready to begin?",
-                todayDay, workoutCount, totalDuration);
+                todayDay, workoutCount, finalTotalDuration);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("Start Workout");
@@ -762,7 +766,7 @@ public class HomeFragment extends Fragment {
 
             Intent serviceIntent = new Intent(getActivity(), WorkoutForegroundService.class);
             serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, firstWorkoutTitle);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, totalDuration * 60); // Convert to seconds
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, finalTotalDuration * 60); // Convert to seconds
             ContextCompat.startForegroundService(getActivity(), serviceIntent);
         });
         builder.setNegativeButton("Cancel", null);
