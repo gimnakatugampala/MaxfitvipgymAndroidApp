@@ -63,6 +63,10 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
+// ✅ Add these imports to WorkoutActivity.java
+import com.example.maxfitvipgymapp.Repository.WorkoutCompletionRepository;
+
 import static com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade;
 
 public class WorkoutActivity extends AppCompatActivity {
@@ -113,6 +117,8 @@ public class WorkoutActivity extends AppCompatActivity {
 
     private boolean isReceiverRegistered = false;
 
+    private WorkoutCompletionRepository workoutCompletionRepository;
+
     private BroadcastReceiver timerUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -143,6 +149,9 @@ public class WorkoutActivity extends AppCompatActivity {
         workoutRepository = new WorkoutRepository();
         executorService = Executors.newSingleThreadExecutor();
         sessionManager = new SessionManager(this);
+
+        workoutCompletionRepository = new WorkoutCompletionRepository();
+
 
         // ✅ Initialize AudioManager first
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -929,10 +938,41 @@ public class WorkoutActivity extends AppCompatActivity {
         TextView streakInfo = celebrationView.findViewById(R.id.streakInfo);
         Button btnContinue = celebrationView.findViewById(R.id.btnContinueToDashboard);
 
-        SharedPreferences prefs = getSharedPreferences("WorkoutPrefs", MODE_PRIVATE);
-        int currentStreak = prefs.getInt("currentStreak", 0);
+        // ✅ Save workout completion to database
+        int memberId = sessionManager.getMemberId();
+        int totalDuration = 0;
+        int workoutCount = workouts.size();
 
-        streakInfo.setText("🔥 " + currentStreak + " Day Streak!");
+        for (Workout workout : workouts) {
+            totalDuration += (workout.getDuration() / 60); // Convert seconds to minutes
+        }
+
+        final int finalTotalDuration = totalDuration;
+
+        // Save to database in background
+        executorService.execute(() -> {
+            boolean saved = workoutCompletionRepository.recordWorkoutCompletion(
+                    memberId,
+                    finalTotalDuration,
+                    workoutCount
+            );
+
+            if (saved) {
+                Log.d(TAG, "✅ Workout completion saved to database");
+            } else {
+                Log.e(TAG, "❌ Failed to save workout completion");
+            }
+
+            // ✅ Get fresh streak from database
+            int currentStreak = workoutCompletionRepository.calculateCurrentStreak(memberId);
+
+            runOnUiThread(() -> {
+                streakInfo.setText("🔥 " + currentStreak + " Day Streak!");
+            });
+        });
+
+        // ✅ DEPRECATED: Remove SharedPreferences streak logic
+        // The streak is now calculated from database
 
         String[] messages = {
                 "You're crushing it!",
@@ -946,6 +986,7 @@ public class WorkoutActivity extends AppCompatActivity {
         int randomIndex = (int) (Math.random() * messages.length);
         celebrationMessage.setText(messages[randomIndex]);
 
+        // Animations
         celebrationIcon.setScaleX(0f);
         celebrationIcon.setScaleY(0f);
         celebrationIcon.setAlpha(0f);
@@ -1010,6 +1051,10 @@ public class WorkoutActivity extends AppCompatActivity {
 
         btnContinue.setOnClickListener(v -> {
             dialog.dismiss();
+
+            // ✅ Update widget with database streak
+            updateWidget();
+
             Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
             intent.putExtra("navigateTo", "home");
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);

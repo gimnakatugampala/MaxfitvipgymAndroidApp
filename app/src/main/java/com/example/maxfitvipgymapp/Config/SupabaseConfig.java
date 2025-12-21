@@ -23,4 +23,6 @@ public class SupabaseConfig {
     public static final String TABLE_DAY = "day";
     public static final String TABLE_MAX_HR = "max_hr_inch";
     public static final String TABLE_PAYMENT_MEMBERS = "payment_members";
+
+    public static final String TABLE_WORKOUT_COMPLETIONS = "workout_completions";
 }

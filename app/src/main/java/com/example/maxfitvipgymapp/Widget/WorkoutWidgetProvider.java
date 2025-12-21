@@ -12,10 +12,14 @@ import android.widget.RemoteViews;
 import com.example.maxfitvipgymapp.Activity.MainActivity;
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Repository.WorkoutCompletionRepository;
+import com.example.maxfitvipgymapp.Utils.SessionManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class WorkoutWidgetProvider extends AppWidgetProvider {
 
@@ -42,15 +46,35 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_workout);
 
-        SharedPreferences prefs = context.getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
-        int currentStreak = prefs.getInt("currentStreak", 0);
-        String lastWorkoutDate = prefs.getString("lastWorkoutDate", "");
+        // ✅ Get streak from database in background
+        SessionManager sessionManager = new SessionManager(context);
+        int memberId = sessionManager.getMemberId();
 
-        String today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().getTime());
+        if (memberId != -1) {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executor.execute(() -> {
+                WorkoutCompletionRepository repository = new WorkoutCompletionRepository();
+                int currentStreak = repository.calculateCurrentStreak(memberId);
+                boolean workoutCompletedToday = repository.isCompletedToday(memberId);
+
+                // Update UI on main thread
+                new android.os.Handler(context.getMainLooper()).post(() -> {
+                    updateWidgetViews(context, views, appWidgetManager, appWidgetId,
+                            currentStreak, workoutCompletedToday);
+                });
+            });
+            executor.shutdown();
+        } else {
+            // No user logged in, show default
+            updateWidgetViews(context, views, appWidgetManager, appWidgetId, 0, false);
+        }
+    }
+
+    private static void updateWidgetViews(Context context, RemoteViews views,
+                                          AppWidgetManager appWidgetManager, int appWidgetId,
+                                          int currentStreak, boolean workoutCompletedToday) {
         String currentDay = new SimpleDateFormat("EEEE", Locale.getDefault()).format(Calendar.getInstance().getTime());
-
         boolean isRestDay = currentDay.equals("Wednesday") || currentDay.equals("Sunday");
-        boolean workoutCompletedToday = today.equals(lastWorkoutDate);
 
         views.setTextViewText(R.id.widgetStreakNumber, String.valueOf(currentStreak));
 

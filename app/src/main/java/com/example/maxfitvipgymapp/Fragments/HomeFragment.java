@@ -49,6 +49,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
+import com.example.maxfitvipgymapp.Repository.WorkoutCompletionRepository;
+
 public class HomeFragment extends Fragment {
 
     private static final String TAG = "HomeFragment";
@@ -93,6 +96,9 @@ public class HomeFragment extends Fragment {
     private boolean isTodayRestDay = false;
     private List<Map<String, Object>> todayWorkouts = null;
 
+    private WorkoutCompletionRepository workoutCompletionRepository;
+
+
     // Day name mapping
     private static final String[] DAYS = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
     private static final String[] DAY_ABBR = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
@@ -113,6 +119,8 @@ public class HomeFragment extends Fragment {
         workoutScheduleContainer = view.findViewById(R.id.workout_schedule_container);
         homeTitle = view.findViewById(R.id.home_title);
         startWorkoutButton = view.findViewById(R.id.startWorkoutButton);
+
+        workoutCompletionRepository = new WorkoutCompletionRepository();
 
         // Set personalized welcome message
         setWelcomeMessage();
@@ -458,15 +466,26 @@ public class HomeFragment extends Fragment {
     private void updateStreakDisplay() {
         View view = getView();
         if (view != null && getActivity() != null && isAdded()) {
-            SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
-            int currentStreak = prefs.getInt("currentStreak", 0);
+            int memberId = sessionManager.getMemberId();
 
-            TextView streakNumber = view.findViewById(R.id.streakNumber);
-            if (streakNumber != null) {
-                streakNumber.setText(String.valueOf(currentStreak));
-            }
+            // ✅ Fetch streak from database instead of SharedPreferences
+            executorService.execute(() -> {
+                int currentStreak = workoutCompletionRepository.calculateCurrentStreak(memberId);
 
-            updateStreakCard(currentStreak);
+                // ✅ FIX: Use getActivity().runOnUiThread() instead of just runOnUiThread()
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (!isAdded()) return;
+
+                        TextView streakNumber = view.findViewById(R.id.streakNumber);
+                        if (streakNumber != null) {
+                            streakNumber.setText(String.valueOf(currentStreak));
+                        }
+
+                        updateStreakCard(currentStreak);
+                    });
+                }
+            });
         }
     }
 
@@ -498,96 +517,106 @@ public class HomeFragment extends Fragment {
         MaterialButton btnContinue = dialogView.findViewById(R.id.btnContinue);
         ImageView btnClose = dialogView.findViewById(R.id.btnClose);
 
-        SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
-        int currentStreak = prefs.getInt("currentStreak", 0);
+        int memberId = sessionManager.getMemberId();
 
-        TextView streakTitle = dialogView.findViewById(R.id.streakTitle);
-        if (streakTitle != null) {
-            streakTitle.setText(currentStreak + " Day Streak!");
-        }
+        // ✅ Fetch streak from database
+        executorService.execute(() -> {
+            int currentStreak = workoutCompletionRepository.calculateCurrentStreak(memberId);
 
-        setupStreakCalendar(recyclerView);
-        animateStreakIcon(streakIcon);
+            // ✅ FIX: Use getActivity().runOnUiThread() instead of just runOnUiThread()
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return;
 
-        btnContinue.setOnClickListener(v -> dialog.dismiss());
-        if (btnClose != null) {
-            btnClose.setOnClickListener(v -> dialog.dismiss());
-        }
+                    TextView streakTitle = dialogView.findViewById(R.id.streakTitle);
+                    if (streakTitle != null) {
+                        streakTitle.setText(currentStreak + " Day Streak!");
+                    }
 
-        dialog.show();
+                    setupStreakCalendar(recyclerView);
+                    animateStreakIcon(streakIcon);
+
+                    btnContinue.setOnClickListener(v -> dialog.dismiss());
+                    if (btnClose != null) {
+                        btnClose.setOnClickListener(v -> dialog.dismiss());
+                    }
+
+                    dialog.show();
+                });
+            }
+        });
     }
 
     private void setupStreakCalendar(RecyclerView recyclerView) {
         if (!isAdded() || getActivity() == null) return;
 
         List<MonthModel> monthList = new ArrayList<>();
+        int memberId = sessionManager.getMemberId();
 
-        SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
-        String lastWorkoutDate = prefs.getString("lastWorkoutDate", "");
-        int currentStreak = prefs.getInt("currentStreak", 0);
+        // ✅ Fetch completion dates from database
+        executorService.execute(() -> {
+            List<String> completedDates = workoutCompletionRepository.getCompletionDates(memberId, 6);
 
-        Set<String> completedDates = new HashSet<>();
-        if (!lastWorkoutDate.isEmpty() && currentStreak > 0) {
-            Calendar cal = Calendar.getInstance();
-            try {
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-                cal.setTime(sdf.parse(lastWorkoutDate));
+            // ✅ FIX: Use getActivity().runOnUiThread() instead of just runOnUiThread()
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (!isAdded()) return;
 
-                for (int i = 0; i < currentStreak; i++) {
-                    completedDates.add(sdf.format(cal.getTime()));
-                    cal.add(Calendar.DAY_OF_MONTH, -1);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+                    // Convert list to set for faster lookups
+                    Set<String> completedSet = new HashSet<>(completedDates);
+
+                    Calendar startCal = Calendar.getInstance();
+                    startCal.add(Calendar.MONTH, -5);
+                    startCal.set(Calendar.DAY_OF_MONTH, 1);
+
+                    Calendar endCal = Calendar.getInstance();
+                    Calendar iteratorCal = (Calendar) startCal.clone();
+                    SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+
+                    while (iteratorCal.before(endCal) ||
+                            (iteratorCal.get(Calendar.MONTH) == endCal.get(Calendar.MONTH) &&
+                                    iteratorCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR))) {
+
+                        List<DateModel> daysInMonth = new ArrayList<>();
+                        String monthName = new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(iteratorCal.getTime());
+                        int maxDays = iteratorCal.getActualMaximum(Calendar.DAY_OF_MONTH);
+
+                        iteratorCal.set(Calendar.DAY_OF_MONTH, 1);
+                        int startDayOfWeek = iteratorCal.get(Calendar.DAY_OF_WEEK);
+
+                        // Add empty cells for days before month starts
+                        for (int i = 1; i < startDayOfWeek; i++) {
+                            daysInMonth.add(new DateModel("", "", false, true));
+                        }
+
+                        // Add actual days
+                        for (int day = 1; day <= maxDays; day++) {
+                            Calendar currentDay = (Calendar) iteratorCal.clone();
+                            currentDay.set(Calendar.DAY_OF_MONTH, day);
+                            boolean isFuture = currentDay.after(endCal);
+
+                            String dateString = dateFormatter.format(currentDay.getTime());
+                            boolean attended = completedSet.contains(dateString);
+
+                            daysInMonth.add(new DateModel("", String.valueOf(day), attended, isFuture));
+                        }
+
+                        monthList.add(new MonthModel(monthName, daysInMonth));
+                        iteratorCal.add(Calendar.MONTH, 1);
+                    }
+
+                    CalendarMonthAdapter adapter = new CalendarMonthAdapter(getContext(), monthList);
+                    recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+                    recyclerView.setAdapter(adapter);
+
+                    if (monthList.size() > 0) {
+                        recyclerView.scrollToPosition(monthList.size() - 1);
+                    }
+                });
             }
-        }
-
-        Calendar startCal = Calendar.getInstance();
-        startCal.add(Calendar.MONTH, -5);
-        startCal.set(Calendar.DAY_OF_MONTH, 1);
-
-        Calendar endCal = Calendar.getInstance();
-        Calendar iteratorCal = (Calendar) startCal.clone();
-        SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-
-        while (iteratorCal.before(endCal) ||
-                (iteratorCal.get(Calendar.MONTH) == endCal.get(Calendar.MONTH) &&
-                        iteratorCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR))) {
-
-            List<DateModel> daysInMonth = new ArrayList<>();
-            String monthName = new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(iteratorCal.getTime());
-            int maxDays = iteratorCal.getActualMaximum(Calendar.DAY_OF_MONTH);
-
-            iteratorCal.set(Calendar.DAY_OF_MONTH, 1);
-            int startDayOfWeek = iteratorCal.get(Calendar.DAY_OF_WEEK);
-
-            for (int i = 1; i < startDayOfWeek; i++) {
-                daysInMonth.add(new DateModel("", "", false, true));
-            }
-
-            for (int day = 1; day <= maxDays; day++) {
-                Calendar currentDay = (Calendar) iteratorCal.clone();
-                currentDay.set(Calendar.DAY_OF_MONTH, day);
-                boolean isFuture = currentDay.after(endCal);
-
-                String dateString = dateFormatter.format(currentDay.getTime());
-                boolean attended = completedDates.contains(dateString);
-
-                daysInMonth.add(new DateModel("", String.valueOf(day), attended, isFuture));
-            }
-
-            monthList.add(new MonthModel(monthName, daysInMonth));
-            iteratorCal.add(Calendar.MONTH, 1);
-        }
-
-        CalendarMonthAdapter adapter = new CalendarMonthAdapter(getContext(), monthList);
-        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        recyclerView.setAdapter(adapter);
-
-        if (monthList.size() > 0) {
-            recyclerView.scrollToPosition(monthList.size() - 1);
-        }
+        });
     }
+
 
     private void animateStreakIcon(View view) {
         if (view == null) return;
