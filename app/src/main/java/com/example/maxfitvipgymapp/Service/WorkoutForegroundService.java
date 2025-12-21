@@ -1,224 +1,252 @@
+// ========================================================================
+// SOLUTION: Move Timer Logic to the ForegroundService
+// This ensures the timer continues even when Activity is paused/destroyed
+// ========================================================================
+
+// FILE: WorkoutForegroundService.java
+// Replace or update your existing service with this implementation
+
 package com.example.maxfitvipgymapp.Service;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.Context;
+import android.app.Service;
 import android.content.Intent;
-import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 
-import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
 
-public class WorkoutForegroundService extends android.app.Service {
+public class WorkoutForegroundService extends Service {
 
     private static final String TAG = "WorkoutForegroundService";
-    public static final String CHANNEL_ID = "WorkoutNotificationChannel";
+    private static final String CHANNEL_ID = "workout_foreground_channel";
+    private static final int NOTIFICATION_ID = 1001;
 
-    // Intent extras
-    public static final String EXTRA_WORKOUT_TITLE = "WORKOUT_TITLE";
-    public static final String EXTRA_DURATION = "WORKOUT_DURATION";
-    public static final String EXTRA_IS_RESTING = "IS_RESTING";
-    public static final String EXTRA_TOTAL_WORKOUTS = "TOTAL_WORKOUTS";
-    public static final String EXTRA_CURRENT_WORKOUT_INDEX = "CURRENT_WORKOUT_INDEX";
-    public static final String ACTION_START_TIMER = "START_TIMER";
-    public static final String ACTION_STOP_TIMER = "STOP_TIMER";
+    public static final String EXTRA_WORKOUT_TITLE = "workout_title";
+    public static final String EXTRA_DURATION = "duration";
+    public static final String EXTRA_IS_RESTING = "is_resting";
+    public static final String EXTRA_ACTION = "action";
 
-    // Broadcast actions
-    public static final String ACTION_WORKOUT_COMPLETE = "com.example.maxfitvipgymapp.WORKOUT_COMPLETE";
-    public static final String ACTION_TIMER_TICK = "com.example.maxfitvipgymapp.TIMER_TICK";
+    public static final String ACTION_START_TIMER = "start_timer";
+    public static final String ACTION_PAUSE_TIMER = "pause_timer";
+    public static final String ACTION_RESUME_TIMER = "resume_timer";
+    public static final String ACTION_STOP_SERVICE = "stop_service";
 
-    private Handler handler;
-    private int timeLeft;
-    private int totalDuration;
-    private String workoutTitle = "Workout";
+    private Handler timerHandler;
+    private Runnable timerRunnable;
+    private int timeLeft = 0;
+    private String currentWorkoutTitle = "Workout";
     private boolean isResting = false;
-    private int totalWorkouts = 1;
-    private int currentWorkoutIndex = 0;
-    private boolean isRunning = false;
-
-    private Runnable timerRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (timeLeft > 0 && isRunning) {
-                timeLeft--;
-
-                // Broadcast timer update to activity
-                Intent broadcastIntent = new Intent(ACTION_TIMER_TICK);
-                broadcastIntent.putExtra("timeLeft", timeLeft);
-                LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(broadcastIntent);
-
-                updateNotification();
-                handler.postDelayed(this, 1000);
-
-                Log.d(TAG, "⏱️ Timer tick: " + timeLeft + "s remaining");
-            } else if (timeLeft <= 0) {
-                // Timer completed - notify activity
-                Log.d(TAG, "✅ Timer completed! Notifying activity...");
-
-                Intent broadcastIntent = new Intent(ACTION_WORKOUT_COMPLETE);
-                LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(broadcastIntent);
-
-                // Don't stop service - let activity control it
-            }
-        }
-    };
+    private boolean isTimerRunning = false;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        handler = new Handler(Looper.getMainLooper());
+        Log.d(TAG, "✅ Service created");
+
+        // Initialize Handler on main looper for reliable timing
+        timerHandler = new Handler(Looper.getMainLooper());
+
         createNotificationChannel();
-        Log.d(TAG, "✅ WorkoutForegroundService created");
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
-            String action = intent.getAction();
+        Log.d(TAG, "📥 onStartCommand called");
 
-            if ("STOP_SERVICE".equals(action)) {
-                Log.d(TAG, "🛑 Stopping service");
+        if (intent != null) {
+            String action = intent.getStringExtra(EXTRA_ACTION);
+
+            if (ACTION_STOP_SERVICE.equals(action)) {
+                Log.d(TAG, "🛑 Stop service action received");
                 stopTimer();
                 stopForeground(true);
                 stopSelf();
                 return START_NOT_STICKY;
             }
 
-            if (ACTION_START_TIMER.equals(action)) {
-                // Start/restart timer with new values
-                workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
-                timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
-                totalDuration = timeLeft;
-                isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
-                totalWorkouts = intent.getIntExtra(EXTRA_TOTAL_WORKOUTS, 1);
-                currentWorkoutIndex = intent.getIntExtra(EXTRA_CURRENT_WORKOUT_INDEX, 0);
+            if (ACTION_PAUSE_TIMER.equals(action)) {
+                Log.d(TAG, "⏸️ Pause timer action received");
+                pauseTimer();
+                return START_STICKY;
+            }
 
-                Log.d(TAG, "▶️ START_TIMER: " + workoutTitle + " (" + timeLeft + "s)");
+            if (ACTION_RESUME_TIMER.equals(action)) {
+                Log.d(TAG, "▶️ Resume timer action received");
+                resumeTimer();
+                return START_STICKY;
+            }
+
+            // Update workout info
+            currentWorkoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
+            timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
+            isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
+
+            if (currentWorkoutTitle == null) {
+                currentWorkoutTitle = "Workout";
+            }
+
+            Log.d(TAG, "📊 Timer update: " + currentWorkoutTitle + " - " + timeLeft + "s (resting: " + isResting + ")");
+
+            // Start foreground service with notification
+            startForeground(NOTIFICATION_ID, buildNotification());
+
+            // Start or restart timer if action is START_TIMER or if timer not running
+            if (ACTION_START_TIMER.equals(action) || !isTimerRunning) {
                 startTimer();
-            } else if (ACTION_STOP_TIMER.equals(action)) {
-                Log.d(TAG, "⏸️ STOP_TIMER");
-                stopTimer();
             } else {
-                // Update only
-                workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
-                int newTimeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
-                isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
-                totalWorkouts = intent.getIntExtra(EXTRA_TOTAL_WORKOUTS, 1);
-                currentWorkoutIndex = intent.getIntExtra(EXTRA_CURRENT_WORKOUT_INDEX, 0);
-
-                if (newTimeLeft > 0) {
-                    timeLeft = newTimeLeft;
-                    totalDuration = newTimeLeft;
-                }
+                // Just update the notification
+                updateNotification();
             }
         }
 
-        // Start foreground
-        Notification notification = buildNotification();
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager != null) {
-            manager.notify(1, notification);
-        }
-
-        try {
-            startForeground(1, notification);
-            Log.d(TAG, "✅ Foreground service started");
-        } catch (Exception e) {
-            Log.e(TAG, "❌ Error starting foreground service", e);
-        }
-
+        // START_STICKY ensures service restarts if killed by system
         return START_STICKY;
-    }
-
-    private void startTimer() {
-        stopTimer();
-        isRunning = true;
-        handler.post(timerRunnable);
-        Log.d(TAG, "▶️ Timer started");
-    }
-
-    private void stopTimer() {
-        isRunning = false;
-        handler.removeCallbacks(timerRunnable);
-        Log.d(TAG, "⏸️ Timer stopped");
-    }
-
-    private void updateNotification() {
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager != null) {
-            manager.notify(1, buildNotification());
-        }
-    }
-
-    private PendingIntent buildPendingIntent() {
-        Intent notificationIntent = new Intent(this, WorkoutActivity.class);
-        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        return PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    private Notification buildNotification() {
-        int progress = totalDuration > 0 ? 100 - (int)(((float)timeLeft / totalDuration) * 100) : 0;
-        PendingIntent pendingIntent = buildPendingIntent();
-
-        String displayTitle = isResting ? "Resting - " + workoutTitle : "Workout: " + workoutTitle;
-        String workoutProgress = "";
-        if (totalWorkouts > 1) {
-            workoutProgress = " (" + (currentWorkoutIndex + 1) + "/" + totalWorkouts + ")";
-        }
-
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(displayTitle + workoutProgress)
-                .setContentText("Time left: " + formatTime(timeLeft))
-                .setSmallIcon(R.drawable.notification)
-                .setProgress(100, progress, false)
-                .setOnlyAlertOnce(true)
-                .setOngoing(true)
-                .setContentIntent(pendingIntent)
-                .setColor(Color.YELLOW)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .build();
-    }
-
-    private String formatTime(int totalSecs) {
-        int minutes = totalSecs / 60;
-        int seconds = totalSecs % 60;
-        return String.format("%d:%02d", minutes, seconds);
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel serviceChannel = new NotificationChannel(
+            NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Workout Notification Channel",
-                    NotificationManager.IMPORTANCE_LOW
+                    "Workout Timer",
+                    NotificationManager.IMPORTANCE_LOW // LOW = no sound
             );
-            serviceChannel.setDescription("Shows workout timer progress");
+            channel.setDescription("Shows workout timer progress");
+            channel.setShowBadge(false);
+
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
-                manager.createNotificationChannel(serviceChannel);
+                manager.createNotificationChannel(channel);
             }
+        }
+    }
+
+    private Notification buildNotification() {
+        Intent notificationIntent = new Intent(this, WorkoutActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        String contentText;
+        if (isResting) {
+            contentText = "Rest - " + formatTime(timeLeft);
+        } else {
+            contentText = currentWorkoutTitle + " - " + formatTime(timeLeft);
+        }
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Workout in Progress")
+                .setContentText(contentText)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true) // Can't be dismissed
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .build();
+    }
+
+    private void updateNotification() {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) {
+            manager.notify(NOTIFICATION_ID, buildNotification());
+        }
+    }
+
+    private String formatTime(int seconds) {
+        int minutes = seconds / 60;
+        int secs = seconds % 60;
+        return String.format("%d:%02d", minutes, secs);
+    }
+
+    // ✅ START TIMER - Runs independently of Activity
+    private void startTimer() {
+        stopTimer(); // Stop any existing timer first
+
+        Log.d(TAG, "⏱️ Starting timer: " + timeLeft + " seconds");
+        isTimerRunning = true;
+
+        timerRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (timeLeft > 0) {
+                    // Broadcast timer update to Activity
+                    Intent intent = new Intent("TIMER_UPDATE");
+                    intent.putExtra("timeLeft", timeLeft);
+                    intent.putExtra("workoutTitle", currentWorkoutTitle);
+                    intent.putExtra("isResting", isResting);
+                    LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(intent);
+
+                    // Update notification every 5 seconds (battery optimization)
+                    if (timeLeft % 5 == 0) {
+                        updateNotification();
+                    }
+
+                    timeLeft--;
+                    timerHandler.postDelayed(this, 1000);
+                } else {
+                    // Timer completed
+                    Log.d(TAG, "✅ Timer completed for: " + currentWorkoutTitle);
+
+                    // Broadcast completion
+                    Intent intent = new Intent("TIMER_COMPLETE");
+                    intent.putExtra("workoutTitle", currentWorkoutTitle);
+                    intent.putExtra("isResting", isResting);
+                    LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(intent);
+
+                    isTimerRunning = false;
+                }
+            }
+        };
+
+        // Start the timer
+        timerHandler.post(timerRunnable);
+    }
+
+    private void stopTimer() {
+        if (timerRunnable != null) {
+            timerHandler.removeCallbacks(timerRunnable);
+            timerRunnable = null;
+        }
+        isTimerRunning = false;
+        Log.d(TAG, "⏹️ Timer stopped");
+    }
+
+    private void pauseTimer() {
+        if (timerRunnable != null) {
+            timerHandler.removeCallbacks(timerRunnable);
+        }
+        isTimerRunning = false;
+        updateNotification();
+        Log.d(TAG, "⏸️ Timer paused");
+    }
+
+    private void resumeTimer() {
+        if (!isTimerRunning && timeLeft > 0) {
+            startTimer();
+            Log.d(TAG, "▶️ Timer resumed");
         }
     }
 
     @Override
     public void onDestroy() {
-        stopTimer();
         super.onDestroy();
-        Log.d(TAG, "🗑️ Service destroyed");
+        stopTimer();
+        Log.d(TAG, "🛑 Service destroyed");
     }
 
-    @Nullable
     @Override
     public IBinder onBind(Intent intent) {
         return null;
