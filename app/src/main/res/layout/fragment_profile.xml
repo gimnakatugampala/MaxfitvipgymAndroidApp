@@ -189,37 +189,38 @@
             android:textSize="14sp"
             android:layout_marginBottom="8dp" />
 
-        <!-- GitHub-style Grid -->
-        <GridLayout
-            android:id="@+id/training_log_grid"
-            android:layout_width="wrap_content"
+        <HorizontalScrollView
+            android:id="@+id/training_scroll_view"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="32dp"
-            android:orientation="horizontal" >
+            android:scrollbars="none"
+            android:layout_marginBottom="32dp">
+        <!-- GitHub-style Grid -->
 
-            <!-- Sample 364 squares: You can dynamically populate this in Java for real data -->
-            <!-- Here are a few to start -->
-            <View
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:layout_margin="1dp"
-                android:background="#1f1f1f" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-            <View
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:layout_margin="1dp"
-                android:background="#FFD300" />
+            <LinearLayout
+                android:id="@+id/month_labels_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingBottom="4dp" />
 
-            <View
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:layout_margin="1dp"
-                android:background="#FFFFFF" />
+            <GridLayout
+                android:id="@+id/training_log_grid"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:columnCount="53"
+                android:rowCount="7"
+                android:padding="4dp"/>
 
-            <!-- Add more views like these for a complete grid -->
-        </GridLayout>
+    </LinearLayout>
+
+        </HorizontalScrollView>
 
         <!-- Momentum Chart Section -->
 

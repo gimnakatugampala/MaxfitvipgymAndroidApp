@@ -226,6 +226,34 @@ public class WorkoutCompletionRepository {
     }
 
     /**
+     * ✅ ADDED: Get ALL completion data for momentum charts and heatmaps
+     */
+    public List<Map<String, Object>> getAllCompletions(int memberId) {
+        List<Map<String, Object>> completions = new ArrayList<>();
+        try {
+            // Get last 365 days
+            Calendar cal = Calendar.getInstance();
+            cal.add(Calendar.YEAR, -1);
+            String startDate = formatDate(cal.getTime());
+
+            String filter = "member_id=eq." + memberId + "&completion_date=gte." + startDate;
+            JSONArray result = client.select(TABLE_NAME, filter);
+
+            for (int i = 0; i < result.length(); i++) {
+                JSONObject obj = result.getJSONObject(i);
+                Map<String, Object> map = new HashMap<>();
+                map.put("date", obj.optString("completion_date"));
+                map.put("duration", obj.optInt("total_duration_minutes"));
+                map.put("count", obj.optInt("workouts_completed"));
+                completions.add(map);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting all completions: " + e.getMessage());
+        }
+        return completions;
+    }
+
+    /**
      * Helper: Get today's date as string
      */
     private String getTodayDate() {
