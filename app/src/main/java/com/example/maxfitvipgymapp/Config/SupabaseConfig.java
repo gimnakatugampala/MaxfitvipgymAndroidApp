@@ -26,8 +26,5 @@ public class SupabaseConfig {
 
     public static final String TABLE_WORKOUT_COMPLETIONS = "workout_completions";
 
-    public static final String TABLE_MEMBER_PRESENCE = "member_presence";
 
-    // ✅ Real-time Presence Table (Optimized - No constant DB writes)
-    public static final String TABLE_MEMBER_PRESENCE_REALTIME = "member_presence_realtime";
 }
