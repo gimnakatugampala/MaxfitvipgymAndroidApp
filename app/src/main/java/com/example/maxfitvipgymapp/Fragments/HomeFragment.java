@@ -1,8 +1,10 @@
 package com.example.maxfitvipgymapp.Fragments;
 
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -18,6 +20,7 @@ import android.widget.*;
 import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -29,6 +32,7 @@ import com.example.maxfitvipgymapp.Model.Member;
 import com.example.maxfitvipgymapp.Model.MonthModel;
 import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Repository.WorkoutRepository;
+import com.example.maxfitvipgymapp.Service.HealthTrackerService;
 import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
 import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
@@ -56,6 +60,31 @@ public class HomeFragment extends Fragment {
     private WorkoutRepository workoutRepository;
     private ExecutorService executorService;
     private MaterialButton startWorkoutButton;
+
+    // ✅ Health data variables
+    private int currentSteps = 0;
+    private double currentDistance = 0.0;
+    private int currentCalories = 0;
+    private int currentActiveMinutes = 0;
+
+    // ✅ Health metric TextViews for updating
+    private TextView stepsValueText;
+    private TextView distanceValueText;
+    private TextView caloriesValueText;
+    private TextView activeMinutesValueText;
+
+    // ✅ Health data broadcast receiver
+    private BroadcastReceiver healthUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            currentSteps = intent.getIntExtra("steps", 0);
+            currentDistance = intent.getDoubleExtra("distance_km", 0.0);
+            currentCalories = intent.getIntExtra("calories", 0);
+            currentActiveMinutes = intent.getIntExtra("active_minutes", 0);
+
+            updateHealthMetrics();
+        }
+    };
 
     // Store schedule data
     private int currentMemberScheduleId = -1;
@@ -108,11 +137,20 @@ public class HomeFragment extends Fragment {
         // Add mic icon in header
         addMicIconToHeader(view);
 
-        // Add health metrics
-        addMetric("Blood Pressure", "120/80", "mmHg", R.drawable.heartrate);
-        addMetric("Heart Rate", "75", "bpm", R.drawable.heart);
-        addMetric("Calories Burned", "450", "kcal", R.drawable.calories);
-        addMetric("Steps Taken", "10,000", "steps", R.drawable.running);
+        // ✅ Add AUTO-TRACKED health metrics (no manual input!)
+        addMetricWithUpdate("Steps", "0", "steps", R.drawable.running);
+        addMetricWithUpdate("Distance", "0.0", "km", R.drawable.running);
+        addMetricWithUpdate("Calories", "0", "kcal", R.drawable.calories);
+        addMetricWithUpdate("Active Time", "0", "min", R.drawable.heartrate);
+
+        // ✅ Start health tracker service
+        startHealthTrackerService();
+
+        // ✅ Register health update receiver
+        LocalBroadcastManager.getInstance(getContext()).registerReceiver(
+                healthUpdateReceiver,
+                new IntentFilter(HealthTrackerService.ACTION_HEALTH_UPDATE)
+        );
 
         // Load workout schedule from database
         loadWorkoutScheduleFromDB();
@@ -610,6 +648,95 @@ public class HomeFragment extends Fragment {
         }
     }
 
+    // ✅ NEW: Add metric with auto-update capability
+    private void addMetricWithUpdate(String title, String value, String unit, int iconRes) {
+        if (!isAdded()) return;
+
+        CardView card = new CardView(getContext());
+        int cardSizeInDp = 160;
+        int cardSizeInPx = (int) (cardSizeInDp * getResources().getDisplayMetrics().density);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(cardSizeInPx, cardSizeInPx);
+        cardParams.setMargins(20, 0, 20, 0);
+        card.setLayoutParams(cardParams);
+        card.setCardBackgroundColor(Color.parseColor("#212121"));
+        card.setRadius(20);
+        card.setCardElevation(10);
+
+        LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(20, 20, 20, 20);
+        layout.setGravity(Gravity.CENTER);
+
+        ImageView icon = new ImageView(getContext());
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(80, 80);
+        icon.setLayoutParams(iconParams);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(Color.YELLOW);
+        layout.addView(icon);
+
+        TextView titleText = new TextView(getContext());
+        titleText.setText(title);
+        titleText.setTextColor(Color.WHITE);
+        titleText.setTextSize(18);
+        titleText.setTypeface(Typeface.DEFAULT_BOLD);
+        titleText.setGravity(Gravity.CENTER);
+        layout.addView(titleText);
+
+        TextView valueText = new TextView(getContext());
+        valueText.setText(value + " " + unit);
+        valueText.setTextColor(Color.WHITE);
+        valueText.setTextSize(22);
+        valueText.setTypeface(null, Typeface.BOLD);
+        valueText.setGravity(Gravity.CENTER);
+        layout.addView(valueText);
+
+        // ✅ Store references for later updates
+        if (title.equals("Steps")) {
+            stepsValueText = valueText;
+        } else if (title.equals("Distance")) {
+            distanceValueText = valueText;
+        } else if (title.equals("Calories")) {
+            caloriesValueText = valueText;
+        } else if (title.equals("Active Time")) {
+            activeMinutesValueText = valueText;
+        }
+
+        card.addView(layout);
+
+        if (metricsContainer != null) {
+            metricsContainer.addView(card);
+        }
+    }
+
+    // ✅ Update health metrics in UI
+    private void updateHealthMetrics() {
+        if (!isAdded()) return;
+
+        getActivity().runOnUiThread(() -> {
+            if (stepsValueText != null) {
+                stepsValueText.setText(String.format(Locale.US, "%,d steps", currentSteps));
+            }
+            if (distanceValueText != null) {
+                distanceValueText.setText(String.format(Locale.US, "%.2f km", currentDistance));
+            }
+            if (caloriesValueText != null) {
+                caloriesValueText.setText(String.format(Locale.US, "%d kcal", currentCalories));
+            }
+            if (activeMinutesValueText != null) {
+                activeMinutesValueText.setText(String.format(Locale.US, "%d min", currentActiveMinutes));
+            }
+        });
+    }
+
+    // ✅ Start health tracker service
+    private void startHealthTrackerService() {
+        if (getContext() != null) {
+            Intent serviceIntent = new Intent(getContext(), HealthTrackerService.class);
+            getContext().startService(serviceIntent);
+            Log.d(TAG, "✅ HealthTracker Service started");
+        }
+    }
+
     private void addWorkout(String day, String summary, String total, boolean isRestDay) {
         if (!isAdded()) return;
 
@@ -807,6 +934,17 @@ public class HomeFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+
+        // ✅ Unregister health update receiver
+        if (getContext() != null) {
+            try {
+                LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(healthUpdateReceiver);
+                Log.d(TAG, "Health update receiver unregistered");
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering receiver: " + e.getMessage());
+            }
+        }
+
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
         }
