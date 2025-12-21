@@ -11,6 +11,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
@@ -59,6 +61,8 @@ import static com.bumptech.glide.load.resource.drawable.DrawableTransitionOption
 
 public class WorkoutActivity extends AppCompatActivity {
 
+    private static final String TAG = "WorkoutActivity";
+
     private TextView workoutTitle, timerText, setInfoText;
     private ImageButton playPauseButton;
     private ImageView backgroundImage;
@@ -81,17 +85,18 @@ public class WorkoutActivity extends AppCompatActivity {
     private GestureDetector gestureDetector;
     private boolean isResting = false;
 
-    // ✅ NEW: Text-to-Speech variables
+    // ✅ Text-to-Speech variables
     private TextToSpeech tts;
     private boolean isTTSReady = false;
     private AudioManager audioManager;
     private int originalMusicVolume;
+    private AudioFocusRequest audioFocusRequest;
     private static final String TTS_UTTERANCE_ID = "workout_tts";
 
-    // ✅ NEW: Voice announcement settings
+    // ✅ Voice announcement settings
     private boolean voiceGuidanceEnabled = true;
-    private int countdownVoiceStart = 10; // Start countdown voice at 10 seconds
-    private List<Integer> countdownNumbers = Arrays.asList(10, 5, 4, 3, 2, 1);
+    private int countdownVoiceStart = 10;
+    private List<Integer> countdownNumbers = Arrays.asList(10, 3, 2, 1);
 
     private Workout[] workouts = {
             new Workout("WEIGHT LIFTING", false, 10, Arrays.asList(10, 10, 10),
@@ -132,6 +137,9 @@ public class WorkoutActivity extends AppCompatActivity {
             LocalBroadcastManager.getInstance(this).registerReceiver(timerUpdateReceiver, new IntentFilter("TIMER_UPDATE"));
             isReceiverRegistered = true;
         }
+
+        // ✅ Initialize AudioManager first
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         // ✅ Initialize Text-to-Speech
         initializeTextToSpeech();
@@ -220,91 +228,213 @@ public class WorkoutActivity extends AppCompatActivity {
         setupWorkout();
     }
 
-    // ✅ NEW: Initialize Text-to-Speech
-    // ✅ NEW: Initialize Text-to-Speech
-    // ✅ NEW: Initialize Text-to-Speech
+    // ✅ FIXED: Initialize Text-to-Speech with proper error handling
     private void initializeTextToSpeech() {
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        Log.d(TAG, "Initializing TTS...");
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
+                Log.d(TAG, "TTS initialization successful");
+
                 int result = tts.setLanguage(Locale.US);
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e("TTS", "Language not supported");
+                    Log.e(TAG, "TTS Language not supported");
                     isTTSReady = false;
-                } else {
-                    isTTSReady = true;
-
-                    // Load settings from WorkoutSettingsActivity
-                    float speechRate = WorkoutSettingsActivity.getSpeechRate(this);
-                    float speechPitch = WorkoutSettingsActivity.getSpeechPitch(this);
-                    voiceGuidanceEnabled = WorkoutSettingsActivity.isVoiceGuidanceEnabled(this);
-                    countdownVoiceStart = WorkoutSettingsActivity.getCountdownStart(this);
-
-                    tts.setSpeechRate(speechRate);
-                    tts.setPitch(speechPitch);
-
-                    // Set up listener for when speech completes
-                    tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                        @Override
-                        public void onStart(String utteranceId) {
-                            // Duck music volume when speaking
-                            runOnUiThread(() -> duckMusicVolume(true));
-                        }
-
-                        @Override
-                        public void onDone(String utteranceId) {
-                            // Restore music volume after speaking
-                            runOnUiThread(() -> duckMusicVolume(false));
-                        }
-
-                        @Override
-                        public void onError(String utteranceId) {
-                            runOnUiThread(() -> duckMusicVolume(false));
-                        }
-                    });
-
-                    Log.d("TTS", "Text-to-Speech initialized successfully");
-                    Log.d("TTS", "Voice guidance enabled: " + voiceGuidanceEnabled);
-                    Log.d("TTS", "Speech rate: " + speechRate + ", Pitch: " + speechPitch);
+                    runOnUiThread(() -> Toast.makeText(this, "Voice guidance not available - language not supported", Toast.LENGTH_SHORT).show());
+                    return;
                 }
+
+                // ✅ Load settings
+                voiceGuidanceEnabled = WorkoutSettingsActivity.isVoiceGuidanceEnabled(this);
+                float speechRate = WorkoutSettingsActivity.getSpeechRate(this);
+                float speechPitch = WorkoutSettingsActivity.getSpeechPitch(this);
+                countdownVoiceStart = WorkoutSettingsActivity.getCountdownStart(this);
+
+                // ✅ Configure TTS
+                tts.setSpeechRate(speechRate);
+                tts.setPitch(speechPitch);
+
+                // ✅ CRITICAL: Use STREAM_MUSIC for audio output
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .setLegacyStreamType(AudioManager.STREAM_MUSIC)
+                            .build();
+                    tts.setAudioAttributes(audioAttributes);
+                }
+
+                // ✅ Set up utterance listener (without audio focus to avoid conflicts)
+                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String utteranceId) {
+                        Log.d(TAG, "🎤 TTS started speaking: " + utteranceId);
+                    }
+
+                    @Override
+                    public void onDone(String utteranceId) {
+                        Log.d(TAG, "✅ TTS finished speaking: " + utteranceId);
+                    }
+
+                    @Override
+                    public void onError(String utteranceId) {
+                        Log.e(TAG, "❌ TTS error: " + utteranceId);
+                    }
+                });
+
+                isTTSReady = true;
+                Log.d(TAG, "✅ TTS ready - Voice guidance: " + voiceGuidanceEnabled + ", Rate: " + speechRate + ", Pitch: " + speechPitch);
+
+                // ✅ Increase media volume if too low
+                if (audioManager != null) {
+                    int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                    int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                    Log.d(TAG, "📢 Current media volume: " + currentVolume + "/" + maxVolume);
+
+                    // If volume is too low, increase it
+                    if (currentVolume < maxVolume / 3) {
+                        Log.d(TAG, "⚠️ Volume too low, increasing...");
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0);
+                    }
+                }
+
+                // ✅ Test TTS immediately
+                runOnUiThread(() -> testTTS());
+
             } else {
-                Log.e("TTS", "Text-to-Speech initialization failed");
+                Log.e(TAG, "TTS initialization failed with status: " + status);
                 isTTSReady = false;
+                runOnUiThread(() -> Toast.makeText(this, "Voice guidance not available", Toast.LENGTH_SHORT).show());
             }
         });
     }
 
-    // ✅ NEW: Duck/restore music volume
-    private void duckMusicVolume(boolean duck) {
+    // ✅ NEW: Test TTS to verify it's working
+    private void testTTS() {
+        if (!isTTSReady) {
+            Log.e(TAG, "❌ Cannot test TTS - not ready");
+            return;
+        }
+
+        // ✅ FORCE MAXIMUM MEDIA VOLUME (critical for hearing TTS!)
         if (audioManager != null) {
-            if (duck) {
-                // Store original volume and reduce it
-                originalMusicVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-                int duckVolume = (int) (originalMusicVolume * 0.3); // Reduce to 30%
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, duckVolume, 0);
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+
+            Log.d(TAG, "📢 Current media volume BEFORE: " + currentVolume + "/" + maxVolume);
+
+            // Force volume to MAXIMUM and SHOW UI so user sees it
+            audioManager.setStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    maxVolume,
+                    AudioManager.FLAG_SHOW_UI | AudioManager.FLAG_PLAY_SOUND
+            );
+
+            int newVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            Log.d(TAG, "🔊 FORCED MEDIA VOLUME TO: " + newVolume + "/" + maxVolume);
+
+            // Force audio mode and speaker
+            audioManager.setMode(AudioManager.MODE_NORMAL);
+            audioManager.setSpeakerphoneOn(true);
+            Log.d(TAG, "📢 FORCED SPEAKERPHONE ON");
+        }
+
+        // Test after delay
+        new Handler().postDelayed(() -> {
+            if (voiceGuidanceEnabled) {
+                Log.d(TAG, "🎤 === TESTING TTS: 'Voice guidance ready' ===");
+                speak("Voice guidance ready");
             } else {
-                // Restore original volume after a short delay
-                new Handler().postDelayed(() -> {
-                    if (audioManager != null) {
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalMusicVolume, 0);
-                    }
-                }, 500);
+                Log.d(TAG, "⚠️ Voice guidance DISABLED in settings - enable it first!");
+                Toast.makeText(this, "Voice guidance is disabled. Enable it in settings.", Toast.LENGTH_LONG).show();
+            }
+        }, 2000);
+    }
+
+    // ✅ FIXED: Request audio focus properly
+    private void requestAudioFocus() {
+        if (audioManager == null) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Modern way (API 26+)
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build();
+
+            // ✅ FIXED: Removed setAcceptsDelayedFocusGain to avoid requiring listener
+            audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(audioAttributes)
+                    .setWillPauseWhenDucked(false)
+                    .build();
+
+            int result = audioManager.requestAudioFocus(audioFocusRequest);
+            Log.d(TAG, "Audio focus requested (API 26+): " + (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED ? "GRANTED" : "FAILED"));
+        } else {
+            // Legacy way (API < 26)
+            int result = audioManager.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+            );
+            Log.d(TAG, "Audio focus requested (Legacy): " + (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED ? "GRANTED" : "FAILED"));
+        }
+    }
+
+    // ✅ FIXED: Abandon audio focus properly
+    private void abandonAudioFocus() {
+        if (audioManager == null) return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+            audioManager.abandonAudioFocusRequest(audioFocusRequest);
+            Log.d(TAG, "Audio focus abandoned (API 26+)");
+        } else {
+            audioManager.abandonAudioFocus(null);
+            Log.d(TAG, "Audio focus abandoned (Legacy)");
+        }
+    }
+
+    // ✅ FIXED: Speak with proper parameters and logging
+    private void speak(String text) {
+        if (!isTTSReady) {
+            Log.w(TAG, "TTS not ready, cannot speak: " + text);
+            return;
+        }
+
+        if (!voiceGuidanceEnabled) {
+            Log.d(TAG, "Voice guidance disabled, skipping: " + text);
+            return;
+        }
+
+        if (tts == null) {
+            Log.e(TAG, "TTS is null, cannot speak: " + text);
+            return;
+        }
+
+        Log.d(TAG, "=== SPEAKING: " + text + " ===");
+
+        // ✅ CRITICAL: Set audio stream to MUSIC (most reliable for hearing audio)
+        HashMap<String, String> params = new HashMap<>();
+        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, TTS_UTTERANCE_ID);
+        params.put(TextToSpeech.Engine.KEY_PARAM_VOLUME, "1.0"); // Max volume
+        params.put(TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(AudioManager.STREAM_MUSIC));
+
+        int result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+
+        if (result == TextToSpeech.ERROR) {
+            Log.e(TAG, "❌ TTS speak() returned ERROR");
+        } else {
+            Log.d(TAG, "✅ TTS speak() called successfully");
+            // Also log media volume for debugging
+            if (audioManager != null) {
+                int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                Log.d(TAG, "📢 Media volume: " + currentVolume + "/" + maxVolume);
             }
         }
     }
 
-    // ✅ NEW: Speak text with TTS
-    private void speak(String text) {
-        if (isTTSReady && voiceGuidanceEnabled && tts != null) {
-            HashMap<String, String> params = new HashMap<>();
-            params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, TTS_UTTERANCE_ID);
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
-            Log.d("TTS", "Speaking: " + text);
-        }
-    }
-
-    // ✅ NEW: Announce workout start
+    // ✅ Announce workout start
     private void announceWorkoutStart(Workout workout) {
         String announcement;
         if (workout.isDurationBased()) {
@@ -318,20 +448,20 @@ public class WorkoutActivity extends AppCompatActivity {
         speak(announcement);
     }
 
-    // ✅ NEW: Announce rest period
+    // ✅ Announce rest period
     private void announceRestPeriod(int seconds, String nextActivity) {
         String announcement = String.format("Rest for %d seconds. Next: %s", seconds, nextActivity);
         speak(announcement);
     }
 
-    // ✅ NEW: Announce countdown
+    // ✅ Announce countdown
     private void announceCountdown(int seconds) {
         if (countdownNumbers.contains(seconds)) {
             speak(String.valueOf(seconds));
         }
     }
 
-    // ✅ NEW: Announce set completion
+    // ✅ Announce set completion
     private void announceSetCompletion(int completedSet, int totalSets) {
         String announcement;
         if (completedSet < totalSets) {
@@ -342,7 +472,7 @@ public class WorkoutActivity extends AppCompatActivity {
         speak(announcement);
     }
 
-    // ✅ NEW: Announce workout completion
+    // ✅ Announce workout completion
     private void announceWorkoutCompletion() {
         speak("Workout complete! Excellent work!");
     }
@@ -407,8 +537,8 @@ public class WorkoutActivity extends AppCompatActivity {
 
         playPauseButton.setImageResource(R.drawable.pause);
 
-        // ✅ Announce workout start
-        new Handler().postDelayed(() -> announceWorkoutStart(workout), 1000);
+        // ✅ Announce workout start after 2 second delay
+        new Handler().postDelayed(() -> announceWorkoutStart(workout), 2000);
 
         startTimer();
     }
@@ -868,7 +998,11 @@ public class WorkoutActivity extends AppCompatActivity {
         if (tts != null) {
             tts.stop();
             tts.shutdown();
+            Log.d(TAG, "TTS shut down");
         }
+
+        // ✅ Abandon audio focus
+        abandonAudioFocus();
 
         if (mediaPlayer != null) {
             mediaPlayer.release();

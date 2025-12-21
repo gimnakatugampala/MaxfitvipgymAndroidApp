@@ -57,7 +57,7 @@ public class HomeFragment extends Fragment {
     private ExecutorService executorService;
     private MaterialButton startWorkoutButton;
 
-    // ✅ Store schedule data
+    // Store schedule data
     private int currentMemberScheduleId = -1;
     private Map<String, List<Map<String, Object>>> weekWorkoutsMap = new HashMap<>();
     private boolean hasActiveSchedule = false;
@@ -90,7 +90,7 @@ public class HomeFragment extends Fragment {
 
         // Update streak badge
         CardView streakBadge = view.findViewById(R.id.streakBadge);
-        if (streakBadge != null) {
+        if (streakBadge != null && getActivity() != null) {
             SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
             int currentStreak = prefs.getInt("currentStreak", 0);
 
@@ -102,7 +102,7 @@ public class HomeFragment extends Fragment {
             streakBadge.setOnClickListener(v -> showStreakDialog());
         }
 
-        // ✅ Workout button state managed by schedule loading
+        // Workout button
         startWorkoutButton.setOnClickListener(v -> showWorkoutStartDialog());
 
         // Add mic icon in header
@@ -114,27 +114,25 @@ public class HomeFragment extends Fragment {
         addMetric("Calories Burned", "450", "kcal", R.drawable.calories);
         addMetric("Steps Taken", "10,000", "steps", R.drawable.running);
 
-        // ✅ Load workout schedule from database
+        // Load workout schedule from database
         loadWorkoutScheduleFromDB();
 
         return view;
     }
 
-    // ✅ Get today's day name
     private String getTodayDayName() {
         Calendar calendar = Calendar.getInstance();
         int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-        return DAYS[dayOfWeek - 1]; // Calendar.SUNDAY = 1, so subtract 1
+        return DAYS[dayOfWeek - 1];
     }
 
-    // ✅ Get today's day abbreviation
     private String getTodayDayAbbr() {
         Calendar calendar = Calendar.getInstance();
         int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
         return DAY_ABBR[dayOfWeek - 1];
     }
 
-    // ✅ Load workout schedule from database
+    // ✅ FIXED: Load workout schedule with proper null checks
     private void loadWorkoutScheduleFromDB() {
         int memberId = sessionManager.getMemberId();
 
@@ -146,27 +144,37 @@ public class HomeFragment extends Fragment {
         }
 
         // Show loading state
-        workoutScheduleContainer.removeAllViews();
-        ProgressBar progressBar = new ProgressBar(getContext());
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        params.gravity = Gravity.CENTER;
-        params.setMargins(0, 40, 0, 40);
-        progressBar.setLayoutParams(params);
-        workoutScheduleContainer.addView(progressBar);
+        if (workoutScheduleContainer != null) {
+            workoutScheduleContainer.removeAllViews();
+            ProgressBar progressBar = new ProgressBar(getContext());
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            params.gravity = Gravity.CENTER;
+            params.setMargins(0, 40, 0, 40);
+            progressBar.setLayoutParams(params);
+            workoutScheduleContainer.addView(progressBar);
+        }
 
         executorService.execute(() -> {
             try {
                 // Get member's current active workout schedule
                 Map<String, Object> memberSchedule = workoutRepository.getMemberWorkoutSchedule(memberId);
 
+                // ✅ Check if fragment is still attached before updating UI
+                if (!isAdded() || getActivity() == null) {
+                    Log.w(TAG, "Fragment not attached, skipping UI update");
+                    return;
+                }
+
                 if (memberSchedule == null) {
                     Log.d(TAG, "No active workout schedule found for member");
                     getActivity().runOnUiThread(() -> {
-                        showEmptySchedule();
-                        disableWorkoutButton("No schedule assigned");
+                        if (isAdded()) {
+                            showEmptySchedule();
+                            disableWorkoutButton("No schedule assigned");
+                        }
                     });
                     return;
                 }
@@ -192,10 +200,10 @@ public class HomeFragment extends Fragment {
                     List<Map<String, Object>> dayWorkouts =
                             workoutRepository.getMemberWorkoutScheduleDetails(currentMemberScheduleId, dayName);
 
-                    // ✅ Store workouts for this day
+                    // Store workouts for this day
                     weekWorkoutsMap.put(dayAbbr, dayWorkouts);
 
-                    // ✅ Check if this is today and store today's workouts
+                    // Check if this is today and store today's workouts
                     if (dayName.equals(todayDayName)) {
                         todayWorkouts = dayWorkouts;
                     }
@@ -229,7 +237,7 @@ public class HomeFragment extends Fragment {
                         isRestDay = true;
                     }
 
-                    // ✅ Set today's rest day status
+                    // Set today's rest day status
                     if (dayName.equals(todayDayName)) {
                         isTodayRestDay = isRestDay;
                     }
@@ -237,36 +245,45 @@ public class HomeFragment extends Fragment {
                     weekSchedule.add(new DaySchedule(dayAbbr, workoutCount, totalDuration, isRestDay));
                 }
 
-                // Update UI on main thread
-                getActivity().runOnUiThread(() -> {
-                    workoutScheduleContainer.removeAllViews();
-                    for (DaySchedule day : weekSchedule) {
-                        if (day.isRestDay) {
-                            addWorkout(day.dayName, "Rest Day", null, true);
-                        } else if (day.workoutCount > 0) {
-                            String summary = day.workoutCount + (day.workoutCount == 1 ? " Workout" : " Workouts");
-                            String total = "Total: " + day.totalDuration + " min";
-                            addWorkout(day.dayName, summary, total, false);
-                        } else {
-                            addWorkout(day.dayName, "No Workouts", null, true);
-                        }
-                    }
+                // ✅ Update UI on main thread with null check
+                if (isAdded() && getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (isAdded() && workoutScheduleContainer != null) {
+                            workoutScheduleContainer.removeAllViews();
+                            for (DaySchedule day : weekSchedule) {
+                                if (day.isRestDay) {
+                                    addWorkout(day.dayName, "Rest Day", null, true);
+                                } else if (day.workoutCount > 0) {
+                                    String summary = day.workoutCount + (day.workoutCount == 1 ? " Workout" : " Workouts");
+                                    String total = "Total: " + day.totalDuration + " min";
+                                    addWorkout(day.dayName, summary, total, false);
+                                } else {
+                                    addWorkout(day.dayName, "No Workouts", null, true);
+                                }
+                            }
 
-                    // ✅ Update button state based on today's schedule
-                    updateWorkoutButtonState();
-                });
+                            // Update button state based on today's schedule
+                            updateWorkoutButtonState();
+                        }
+                    });
+                }
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading workout schedule", e);
-                getActivity().runOnUiThread(() -> {
-                    showEmptySchedule();
-                    disableWorkoutButton("Error loading schedule");
-                });
+                // ✅ FIXED: Check if fragment is attached before updating UI
+                if (isAdded() && getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (isAdded()) {
+                            showEmptySchedule();
+                            disableWorkoutButton("Error loading schedule");
+                            Toast.makeText(getContext(), "Could not load workout schedule. Check your internet connection.", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
             }
         });
     }
 
-    // ✅ NEW: Update workout button state based on today's schedule
     private void updateWorkoutButtonState() {
         if (!hasActiveSchedule) {
             disableWorkoutButton("No schedule assigned");
@@ -287,29 +304,30 @@ public class HomeFragment extends Fragment {
         enableWorkoutButton();
     }
 
-    // ✅ Enable workout button
     private void enableWorkoutButton() {
-        if (startWorkoutButton != null && getActivity() != null) {
+        if (startWorkoutButton != null && isAdded() && getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                startWorkoutButton.setEnabled(true);
-                startWorkoutButton.setAlpha(1.0f);
-                Log.d(TAG, "Workout button ENABLED");
+                if (isAdded() && startWorkoutButton != null) {
+                    startWorkoutButton.setEnabled(true);
+                    startWorkoutButton.setAlpha(1.0f);
+                    Log.d(TAG, "Workout button ENABLED");
+                }
             });
         }
     }
 
-    // ✅ Disable workout button with reason
     private void disableWorkoutButton(String reason) {
-        if (startWorkoutButton != null && getActivity() != null) {
+        if (startWorkoutButton != null && isAdded() && getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                startWorkoutButton.setEnabled(false);
-                startWorkoutButton.setAlpha(0.5f);
-                Log.d(TAG, "Workout button DISABLED: " + reason);
+                if (isAdded() && startWorkoutButton != null) {
+                    startWorkoutButton.setEnabled(false);
+                    startWorkoutButton.setAlpha(0.5f);
+                    Log.d(TAG, "Workout button DISABLED: " + reason);
+                }
             });
         }
     }
 
-    // Helper class to hold day schedule data
     private static class DaySchedule {
         String dayName;
         int workoutCount;
@@ -324,18 +342,19 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    // Show empty schedule message
     private void showEmptySchedule() {
-        workoutScheduleContainer.removeAllViews();
+        if (workoutScheduleContainer != null && isAdded()) {
+            workoutScheduleContainer.removeAllViews();
 
-        TextView emptyText = new TextView(getContext());
-        emptyText.setText("No workout schedule assigned yet.\nContact your trainer to get started!");
-        emptyText.setTextColor(Color.parseColor("#AAAAAA"));
-        emptyText.setTextSize(16);
-        emptyText.setGravity(Gravity.CENTER);
-        emptyText.setPadding(32, 64, 32, 64);
+            TextView emptyText = new TextView(getContext());
+            emptyText.setText("No workout schedule assigned yet.\nContact your trainer to get started!");
+            emptyText.setTextColor(Color.parseColor("#AAAAAA"));
+            emptyText.setTextSize(16);
+            emptyText.setGravity(Gravity.CENTER);
+            emptyText.setPadding(32, 64, 32, 64);
 
-        workoutScheduleContainer.addView(emptyText);
+            workoutScheduleContainer.addView(emptyText);
+        }
     }
 
     private void addMicIconToHeader(View view) {
@@ -400,7 +419,7 @@ public class HomeFragment extends Fragment {
 
     private void updateStreakDisplay() {
         View view = getView();
-        if (view != null) {
+        if (view != null && getActivity() != null && isAdded()) {
             SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
             int currentStreak = prefs.getInt("currentStreak", 0);
 
@@ -424,6 +443,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void showStreakDialog() {
+        if (!isAdded() || getActivity() == null) return;
+
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         LayoutInflater inflater = LayoutInflater.from(getContext());
         View dialogView = inflater.inflate(R.layout.dialog_streak, null);
@@ -459,6 +480,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void setupStreakCalendar(RecyclerView recyclerView) {
+        if (!isAdded() || getActivity() == null) return;
+
         List<MonthModel> monthList = new ArrayList<>();
 
         SharedPreferences prefs = getActivity().getSharedPreferences("WorkoutPrefs", Context.MODE_PRIVATE);
@@ -545,6 +568,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void addMetric(String title, String value, String unit, int iconRes) {
+        if (!isAdded()) return;
+
         CardView card = new CardView(getContext());
         int cardSizeInDp = 160;
         int cardSizeInPx = (int) (cardSizeInDp * getResources().getDisplayMetrics().density);
@@ -579,10 +604,15 @@ public class HomeFragment extends Fragment {
         valueText.setGravity(Gravity.CENTER);
         layout.addView(valueText);
         card.addView(layout);
-        metricsContainer.addView(card);
+
+        if (metricsContainer != null) {
+            metricsContainer.addView(card);
+        }
     }
 
     private void addWorkout(String day, String summary, String total, boolean isRestDay) {
+        if (!isAdded()) return;
+
         CardView card = new CardView(getContext());
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 10, 0, 10);
@@ -624,14 +654,19 @@ public class HomeFragment extends Fragment {
         }
         layout.addView(textLayout);
         card.addView(layout);
-        workoutScheduleContainer.addView(card);
+
+        if (workoutScheduleContainer != null) {
+            workoutScheduleContainer.addView(card);
+        }
+
         card.setClickable(true);
         card.setFocusable(true);
         card.setOnClickListener(v -> showWorkoutDialog(day, isRestDay));
     }
 
-    // ✅ Show actual workouts from database
     private void showWorkoutDialog(String day, boolean isRestDay) {
+        if (!isAdded()) return;
+
         if (isRestDay) {
             Toast.makeText(getContext(), day + " is a rest day. Take it easy and recharge!", Toast.LENGTH_LONG).show();
             return;
@@ -698,9 +733,9 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
-    // ✅ UPDATED: Start workout with today's actual schedule
-    // ✅ UPDATED: Start workout with today's actual schedule
     private void showWorkoutStartDialog() {
+        if (!isAdded() || getActivity() == null) return;
+
         // Double-check all conditions
         if (!hasActiveSchedule) {
             Toast.makeText(getContext(),
@@ -723,7 +758,7 @@ public class HomeFragment extends Fragment {
             return;
         }
 
-        // ✅ Build workout summary for confirmation dialog
+        // Build workout summary
         String todayDay = getTodayDayName();
         int workoutCount = todayWorkouts.size();
         int totalDuration = 0;
@@ -739,7 +774,6 @@ public class HomeFragment extends Fragment {
             }
         }
 
-        // ✅ Make totalDuration effectively final by creating a final copy
         final int finalTotalDuration = totalDuration;
 
         String message = String.format("Today's workout (%s):\n\n%d exercises\nTotal duration: ~%d minutes\n\nAre you ready to begin?",
@@ -749,11 +783,8 @@ public class HomeFragment extends Fragment {
         builder.setTitle("Start Workout");
         builder.setMessage(message);
         builder.setPositiveButton("Start", (dialog, which) -> {
-            // ✅ Pass today's workouts to WorkoutActivity
             Intent workoutActivityIntent = new Intent(getActivity(), WorkoutActivity.class);
 
-            // TODO: You'll need to modify WorkoutActivity to accept workout data
-            // For now, we'll pass the first workout's title
             String firstWorkoutTitle = "Today's Workout";
             if (!todayWorkouts.isEmpty()) {
                 String name = (String) todayWorkouts.get(0).get("name");
@@ -766,7 +797,7 @@ public class HomeFragment extends Fragment {
 
             Intent serviceIntent = new Intent(getActivity(), WorkoutForegroundService.class);
             serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, firstWorkoutTitle);
-            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, finalTotalDuration * 60); // Convert to seconds
+            serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, finalTotalDuration * 60);
             ContextCompat.startForegroundService(getActivity(), serviceIntent);
         });
         builder.setNegativeButton("Cancel", null);
