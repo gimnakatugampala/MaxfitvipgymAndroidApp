@@ -2,12 +2,15 @@ package com.example.maxfitvipgymapp.Fragments;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -18,6 +21,7 @@ import com.example.maxfitvipgymapp.Adapter.DateAdapter;
 import com.example.maxfitvipgymapp.Model.DateModel;
 import com.example.maxfitvipgymapp.R;
 import com.example.maxfitvipgymapp.Repository.ProgressRepository;
+import com.example.maxfitvipgymapp.Repository.WorkoutCompletionRepository;
 import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.XAxis;
@@ -39,54 +43,124 @@ import java.util.concurrent.Executors;
 
 public class InsightsFragment extends Fragment {
 
+    private static final String TAG = "InsightsFragment";
+
     private RecyclerView dateRecyclerView;
     private DateAdapter dateAdapter;
     private LineChart weightChart, bicepChart, hipChart, chestChart;
     private Button btnWeekly, btnMonthly, btnYearly;
     private ProgressRepository progressRepository;
+    private WorkoutCompletionRepository workoutCompletionRepository;
     private SessionManager sessionManager;
     private ExecutorService executorService;
     private int memberId;
+
+    // UI Elements
+    private TextView healthGradeValue;
+    private ProgressBar loadingProgress;
+    private View healthGradeCard;
+
+    // Current period selection
+    private String currentPeriod = "Weekly";
+    private int currentDays = 7;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_insights, container, false);
 
+        // Initialize repositories
         sessionManager = new SessionManager(getContext());
         progressRepository = new ProgressRepository();
+        workoutCompletionRepository = new WorkoutCompletionRepository();
         executorService = Executors.newSingleThreadExecutor();
         memberId = sessionManager.getMemberId();
 
-        // Chart and button references
+        Log.d(TAG, "Initializing InsightsFragment for member ID: " + memberId);
+
+        if (memberId == -1) {
+            Toast.makeText(getContext(), "Error: Member not found", Toast.LENGTH_SHORT).show();
+            return view;
+        }
+
+        // Initialize views
+        initializeViews(view);
+
+        // Setup date selector
+        setupDateSelector();
+
+        // Load initial data
+        loadAllData();
+
+        return view;
+    }
+
+    private void initializeViews(View view) {
+        // Charts
         weightChart = view.findViewById(R.id.weight_chart);
         bicepChart = view.findViewById(R.id.bicep_chart);
         hipChart = view.findViewById(R.id.hip_chart);
         chestChart = view.findViewById(R.id.chest_chart);
 
+        // Buttons
         btnWeekly = view.findViewById(R.id.btn_weekly);
         btnMonthly = view.findViewById(R.id.btn_monthly);
         btnYearly = view.findViewById(R.id.btn_yearly);
 
-        // Load initial chart data
-        loadChartData("Weekly", 7);
-
-        btnWeekly.setOnClickListener(v -> loadChartData("Weekly", 7));
-        btnMonthly.setOnClickListener(v -> loadChartData("Monthly", 30));
-        btnYearly.setOnClickListener(v -> loadChartData("Yearly", 365));
-
-        // Date selector setup
+        // Date selector
         dateRecyclerView = view.findViewById(R.id.date_recycler_view);
         dateRecyclerView.setLayoutManager(
                 new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false)
         );
 
-        setupDateSelector();
+        // Health grade card
+        healthGradeCard = view.findViewById(R.id.health_grade_card);
 
-        // Stats grid
-        loadLatestStats(view);
+        // Button listeners
+        btnWeekly.setOnClickListener(v -> {
+            updateButtonStates(btnWeekly);
+            loadChartData("Weekly", 7);
+        });
 
-        return view;
+        btnMonthly.setOnClickListener(v -> {
+            updateButtonStates(btnMonthly);
+            loadChartData("Monthly", 30);
+        });
+
+        btnYearly.setOnClickListener(v -> {
+            updateButtonStates(btnYearly);
+            loadChartData("Yearly", 365);
+        });
+    }
+
+    private void updateButtonStates(Button selectedButton) {
+        // Reset all buttons
+        btnWeekly.setBackgroundTintList(getResources().getColorStateList(android.R.color.transparent));
+        btnMonthly.setBackgroundTintList(getResources().getColorStateList(android.R.color.transparent));
+        btnYearly.setBackgroundTintList(getResources().getColorStateList(android.R.color.transparent));
+
+        btnWeekly.setTextColor(Color.parseColor("#AAAAAA"));
+        btnMonthly.setTextColor(Color.parseColor("#AAAAAA"));
+        btnYearly.setTextColor(Color.parseColor("#AAAAAA"));
+
+        // Highlight selected
+        selectedButton.setBackgroundTintList(getResources().getColorStateList(R.color.yellow));
+        selectedButton.setTextColor(Color.parseColor("#000000"));
+    }
+
+    private void loadAllData() {
+        if (!isAdded()) return;
+
+        Log.d(TAG, "Loading all data for member: " + memberId);
+
+        // Load stats
+        loadLatestStats();
+
+        // Load charts with default period
+        loadChartData(currentPeriod, currentDays);
+
+        // Load workout statistics
+        loadWorkoutStats();
     }
 
     private void setupDateSelector() {
@@ -108,113 +182,233 @@ public class InsightsFragment extends Fragment {
 
         dateAdapter = new DateAdapter(dateList, position -> {
             dateAdapter.setSelected(position);
-            // Load data for selected date if needed
+            // You can load specific date data here if needed
         });
         dateRecyclerView.setAdapter(dateAdapter);
         dateAdapter.setSelected(selectedIndex);
         dateRecyclerView.scrollToPosition(selectedIndex);
     }
 
-    private void loadLatestStats(View view) {
+    private void loadLatestStats() {
+        if (!isAdded()) return;
+
         executorService.execute(() -> {
-            Map<String, Double> stats = progressRepository.getLatestStats(memberId);
+            try {
+                Log.d(TAG, "Fetching latest stats from database...");
 
-            getActivity().runOnUiThread(() -> {
-                GridLayout statsGrid = view.findViewById(R.id.stats_grid);
-                statsGrid.removeAllViews();
+                // Get latest progress stats
+                Map<String, Double> stats = progressRepository.getLatestStats(memberId);
 
-                int[] icons = {
-                        R.drawable.ic_calories,
-                        R.drawable.ic_weight,
-                        R.drawable.strength,
-                        R.drawable.ic_hip,
-                        R.drawable.ic_chest,
-                        R.drawable.heartrate
-                };
+                if (!isAdded() || getActivity() == null) return;
 
-                String[] labels = {
-                        "Calories", "Weight (kg)", "Bicep Size (cm)",
-                        "Hip Size (cm)", "Chest Size (cm)", "MAX H/R"
-                };
+                getActivity().runOnUiThread(() -> {
+                    View view = getView();
+                    if (view == null) return;
 
-                String[] values = {
-                        "620.98", // Calories - from other source
-                        String.format("%.2f", stats.getOrDefault("weight", 0.0)),
-                        String.format("%.1f", stats.getOrDefault("bicep", 0.0)),
-                        String.format("%.1f", stats.getOrDefault("hip", 0.0)),
-                        String.format("%.1f", stats.getOrDefault("chest", 0.0)),
-                        "180" // MAX HR - from other source
-                };
+                    GridLayout statsGrid = view.findViewById(R.id.stats_grid);
+                    statsGrid.removeAllViews();
 
-                for (int i = 0; i < values.length; i++) {
-                    View statItem = LayoutInflater.from(getContext())
-                            .inflate(R.layout.item_stat, statsGrid, false);
+                    // Get workout completion stats
+                    loadWorkoutStatsForGrid(statsGrid, stats);
+                });
 
-                    ((ImageView) statItem.findViewById(R.id.stat_icon))
-                            .setImageResource(icons[i]);
-                    ((TextView) statItem.findViewById(R.id.stat_value))
-                            .setText(values[i]);
-                    ((TextView) statItem.findViewById(R.id.stat_label))
-                            .setText(labels[i]);
-
-                    GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-                    params.width = 0;
-                    params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-                    params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
-                    params.setMargins(8, 8, 8, 8);
-                    statItem.setLayoutParams(params);
-
-                    statsGrid.addView(statItem);
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading latest stats", e);
+                if (isAdded() && getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "Error loading stats", Toast.LENGTH_SHORT).show()
+                    );
                 }
-            });
+            }
+        });
+    }
+
+    private void loadWorkoutStatsForGrid(GridLayout statsGrid, Map<String, Double> progressStats) {
+        executorService.execute(() -> {
+            try {
+                Map<String, Object> workoutStats = workoutCompletionRepository.getWorkoutStats(memberId);
+
+                if (!isAdded() || getActivity() == null) return;
+
+                getActivity().runOnUiThread(() -> {
+                    // Define icons
+                    int[] icons = {
+                            R.drawable.workout,      // Total Days
+                            R.drawable.ic_weight,    // Weight
+                            R.drawable.strength,     // Bicep
+                            R.drawable.ic_hip,       // Hip
+                            R.drawable.ic_chest,     // Chest
+                            R.drawable.heartrate     // Streak
+                    };
+
+                    // Define labels
+                    String[] labels = {
+                            "Workout Days",
+                            "Weight (kg)",
+                            "Bicep (cm)",
+                            "Hip (cm)",
+                            "Chest (cm)",
+                            "Current Streak"
+                    };
+
+                    // Get values
+                    String[] values = new String[6];
+                    values[0] = String.valueOf(workoutStats.getOrDefault("total_days", 0));
+                    values[1] = String.format("%.1f", progressStats.getOrDefault("weight", 0.0));
+                    values[2] = String.format("%.1f", progressStats.getOrDefault("bicep", 0.0));
+                    values[3] = String.format("%.1f", progressStats.getOrDefault("hip", 0.0));
+                    values[4] = String.format("%.1f", progressStats.getOrDefault("chest", 0.0));
+                    values[5] = String.valueOf(workoutStats.getOrDefault("current_streak", 0));
+
+                    // Create stat items
+                    for (int i = 0; i < values.length; i++) {
+                        View statItem = LayoutInflater.from(getContext())
+                                .inflate(R.layout.item_stat, statsGrid, false);
+
+                        ((ImageView) statItem.findViewById(R.id.stat_icon))
+                                .setImageResource(icons[i]);
+                        ((TextView) statItem.findViewById(R.id.stat_value))
+                                .setText(values[i]);
+                        ((TextView) statItem.findViewById(R.id.stat_label))
+                                .setText(labels[i]);
+
+                        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+                        params.width = 0;
+                        params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+                        params.setMargins(8, 8, 8, 8);
+                        statItem.setLayoutParams(params);
+
+                        statsGrid.addView(statItem);
+                    }
+
+                    Log.d(TAG, "✅ Stats grid populated successfully");
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading workout stats for grid", e);
+            }
+        });
+    }
+
+    private void loadWorkoutStats() {
+        executorService.execute(() -> {
+            try {
+                Map<String, Object> workoutStats = workoutCompletionRepository.getWorkoutStats(memberId);
+
+                int totalDays = (int) workoutStats.getOrDefault("total_days", 0);
+                int totalWorkouts = (int) workoutStats.getOrDefault("total_workouts", 0);
+                int totalDuration = (int) workoutStats.getOrDefault("total_duration_minutes", 0);
+                int currentStreak = (int) workoutStats.getOrDefault("current_streak", 0);
+
+                Log.d(TAG, "Workout Stats - Days: " + totalDays + ", Workouts: " + totalWorkouts +
+                        ", Duration: " + totalDuration + " min, Streak: " + currentStreak);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading workout stats", e);
+            }
         });
     }
 
     private void loadChartData(String period, int days) {
+        if (!isAdded()) return;
+
+        currentPeriod = period;
+        currentDays = days;
+
+        Log.d(TAG, "Loading chart data for period: " + period + " (" + days + " days)");
+
         executorService.execute(() -> {
-            // Get progress data
-            List<Map<String, Object>> weightProgress =
-                    progressRepository.getWeightProgress(memberId, days);
-            List<Map<String, Object>> bicepProgress =
-                    progressRepository.getBicepProgress(memberId, days);
-            List<Map<String, Object>> hipProgress =
-                    progressRepository.getHipProgress(memberId, days);
-            List<Map<String, Object>> chestProgress =
-                    progressRepository.getChestProgress(memberId, days);
+            try {
+                // Get progress data from database
+                List<Map<String, Object>> weightProgress =
+                        progressRepository.getWeightProgress(memberId, days);
+                List<Map<String, Object>> bicepProgress =
+                        progressRepository.getBicepProgress(memberId, days);
+                List<Map<String, Object>> hipProgress =
+                        progressRepository.getHipProgress(memberId, days);
+                List<Map<String, Object>> chestProgress =
+                        progressRepository.getChestProgress(memberId, days);
 
-            // Convert to chart entries
-            List<Entry> weightEntries = convertToEntries(weightProgress);
-            List<Entry> bicepEntries = convertToEntries(bicepProgress);
-            List<Entry> hipEntries = convertToEntries(hipProgress);
-            List<Entry> chestEntries = convertToEntries(chestProgress);
+                Log.d(TAG, "Fetched data - Weight: " + weightProgress.size() +
+                        ", Bicep: " + bicepProgress.size() +
+                        ", Hip: " + hipProgress.size() +
+                        ", Chest: " + chestProgress.size());
 
-            getActivity().runOnUiThread(() -> {
-                setupChart(weightChart, weightEntries, "Weight", Color.parseColor("#FFD300"));
-                setupChart(bicepChart, bicepEntries, "Bicep", Color.parseColor("#FF5722"));
-                setupChart(hipChart, hipEntries, "Hip", Color.parseColor("#009688"));
-                setupChart(chestChart, chestEntries, "Chest", Color.parseColor("#3F51B5"));
-            });
+                // Convert to chart entries
+                List<Entry> weightEntries = convertToEntries(weightProgress);
+                List<Entry> bicepEntries = convertToEntries(bicepProgress);
+                List<Entry> hipEntries = convertToEntries(hipProgress);
+                List<Entry> chestEntries = convertToEntries(chestProgress);
+
+                if (!isAdded() || getActivity() == null) return;
+
+                getActivity().runOnUiThread(() -> {
+                    setupChart(weightChart, weightEntries, "Weight (kg)", Color.parseColor("#FFD300"));
+                    setupChart(bicepChart, bicepEntries, "Bicep (cm)", Color.parseColor("#FF5722"));
+                    setupChart(hipChart, hipEntries, "Hip (cm)", Color.parseColor("#009688"));
+                    setupChart(chestChart, chestEntries, "Chest (cm)", Color.parseColor("#3F51B5"));
+
+                    Log.d(TAG, "✅ Charts updated successfully");
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading chart data", e);
+                if (isAdded() && getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getContext(), "Error loading chart data", Toast.LENGTH_SHORT).show()
+                    );
+                }
+            }
         });
     }
 
     private List<Entry> convertToEntries(List<Map<String, Object>> progress) {
         List<Entry> entries = new ArrayList<>();
-        Collections.reverse(progress); // Reverse to show oldest first
+
+        if (progress == null || progress.isEmpty()) {
+            Log.d(TAG, "No progress data to convert");
+            return entries;
+        }
+
+        // Reverse to show oldest first
+        Collections.reverse(progress);
 
         for (int i = 0; i < progress.size(); i++) {
             Map<String, Object> item = progress.get(i);
-            double value = (double) item.get("value");
-            entries.add(new Entry(i, (float) value));
+            Object valueObj = item.get("value");
+
+            if (valueObj != null) {
+                double value = 0.0;
+                if (valueObj instanceof Double) {
+                    value = (Double) valueObj;
+                } else if (valueObj instanceof Integer) {
+                    value = ((Integer) valueObj).doubleValue();
+                } else if (valueObj instanceof String) {
+                    try {
+                        value = Double.parseDouble((String) valueObj);
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, "Could not parse value: " + valueObj);
+                        continue;
+                    }
+                }
+
+                entries.add(new Entry(i, (float) value));
+            }
         }
 
+        Log.d(TAG, "Converted " + progress.size() + " items to " + entries.size() + " entries");
         return entries;
     }
 
     private void setupChart(LineChart chart, List<Entry> entries, String label, int color) {
+        if (chart == null) return;
+
         if (entries.isEmpty()) {
             // Show empty chart
             chart.clear();
-            chart.setNoDataText("No data available");
+            chart.setNoDataText("No data available for " + label);
+            chart.setNoDataTextColor(Color.WHITE);
             chart.invalidate();
             return;
         }
@@ -222,8 +416,8 @@ public class InsightsFragment extends Fragment {
         LineDataSet dataSet = new LineDataSet(entries, label);
         dataSet.setColor(color);
         dataSet.setCircleColor(color);
-        dataSet.setLineWidth(2f);
-        dataSet.setCircleRadius(5f);
+        dataSet.setLineWidth(3f);
+        dataSet.setCircleRadius(6f);
         dataSet.setDrawCircleHole(false);
         dataSet.setValueTextColor(Color.TRANSPARENT);
         dataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
@@ -234,6 +428,7 @@ public class InsightsFragment extends Fragment {
         LineData lineData = new LineData(dataSet);
         chart.setData(lineData);
 
+        // Chart styling
         chart.getDescription().setEnabled(false);
         chart.setTouchEnabled(true);
         chart.setPinchZoom(true);
@@ -241,23 +436,36 @@ public class InsightsFragment extends Fragment {
         chart.setDrawGridBackground(false);
         chart.setBackgroundColor(Color.BLACK);
 
+        // X Axis
         XAxis xAxis = chart.getXAxis();
         xAxis.setTextColor(Color.WHITE);
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setDrawGridLines(true);
-        xAxis.setGridColor(color);
+        xAxis.setGridColor(Color.argb(50, 255, 255, 255));
         xAxis.setGranularity(1f);
 
+        // Y Axis Left
         YAxis yAxisLeft = chart.getAxisLeft();
         yAxisLeft.setTextColor(Color.WHITE);
         yAxisLeft.setDrawGridLines(true);
-        yAxisLeft.setGridColor(color);
+        yAxisLeft.setGridColor(Color.argb(50, 255, 255, 255));
 
+        // Y Axis Right
         YAxis yAxisRight = chart.getAxisRight();
         yAxisRight.setEnabled(false);
 
         chart.getLegend().setEnabled(false);
+        chart.animateX(500);
         chart.invalidate();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Refresh data when fragment becomes visible
+        if (memberId != -1) {
+            loadAllData();
+        }
     }
 
     @Override
