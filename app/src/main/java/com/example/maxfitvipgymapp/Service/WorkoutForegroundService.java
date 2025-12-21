@@ -1,11 +1,3 @@
-// ========================================================================
-// SOLUTION: Move Timer Logic to the ForegroundService
-// This ensures the timer continues even when Activity is paused/destroyed
-// ========================================================================
-
-// FILE: WorkoutForegroundService.java
-// Replace or update your existing service with this implementation
-
 package com.example.maxfitvipgymapp.Service;
 
 import android.app.Notification;
@@ -18,10 +10,14 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+// ✅ Import MediaStyle for enhanced controls
+import androidx.media.app.NotificationCompat.MediaStyle;
 
 import com.example.maxfitvipgymapp.Activity.WorkoutActivity;
 import com.example.maxfitvipgymapp.R;
@@ -49,23 +45,31 @@ public class WorkoutForegroundService extends Service {
     private boolean isResting = false;
     private boolean isTimerRunning = false;
 
+    private PowerManager.WakeLock wakeLock;
+
     @Override
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "✅ Service created");
 
-        // Initialize Handler on main looper for reliable timing
         timerHandler = new Handler(Looper.getMainLooper());
+
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MaxFit:WorkoutWakeLock");
+        wakeLock.acquire(4 * 60 * 60 * 1000); // 4 hours max
 
         createNotificationChannel();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "📥 onStartCommand called");
-
         if (intent != null) {
             String action = intent.getStringExtra(EXTRA_ACTION);
+
+            // ✅ Handle Notification Action Buttons
+            if (intent.getAction() != null) {
+                action = intent.getAction();
+            }
 
             if (ACTION_STOP_SERVICE.equals(action)) {
                 Log.d(TAG, "🛑 Stop service action received");
@@ -76,41 +80,43 @@ public class WorkoutForegroundService extends Service {
             }
 
             if (ACTION_PAUSE_TIMER.equals(action)) {
-                Log.d(TAG, "⏸️ Pause timer action received");
                 pauseTimer();
                 return START_STICKY;
             }
 
             if (ACTION_RESUME_TIMER.equals(action)) {
-                Log.d(TAG, "▶️ Resume timer action received");
                 resumeTimer();
                 return START_STICKY;
             }
 
-            // Update workout info
-            currentWorkoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
-            timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
-            isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
+            // Update workout info from extras
+            if (intent.hasExtra(EXTRA_WORKOUT_TITLE)) {
+                currentWorkoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
+            }
+            if (intent.hasExtra(EXTRA_DURATION)) {
+                timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
+            }
+            if (intent.hasExtra(EXTRA_IS_RESTING)) {
+                isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
+            }
 
             if (currentWorkoutTitle == null) {
                 currentWorkoutTitle = "Workout";
             }
 
-            Log.d(TAG, "📊 Timer update: " + currentWorkoutTitle + " - " + timeLeft + "s (resting: " + isResting + ")");
-
-            // Start foreground service with notification
+            // Start foreground immediately
             startForeground(NOTIFICATION_ID, buildNotification());
 
-            // Start or restart timer if action is START_TIMER or if timer not running
-            if (ACTION_START_TIMER.equals(action) || !isTimerRunning) {
+            if (ACTION_START_TIMER.equals(action)) {
+                startTimer();
+            } else if (!isTimerRunning && timeLeft > 0) {
+                // Auto-resume if simply started with time remaining
                 startTimer();
             } else {
-                // Just update the notification
                 updateNotification();
             }
         }
 
-        // START_STICKY ensures service restarts if killed by system
         return START_STICKY;
     }
 
@@ -119,7 +125,7 @@ public class WorkoutForegroundService extends Service {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
                     "Workout Timer",
-                    NotificationManager.IMPORTANCE_LOW // LOW = no sound
+                    NotificationManager.IMPORTANCE_LOW
             );
             channel.setDescription("Shows workout timer progress");
             channel.setShowBadge(false);
@@ -131,31 +137,66 @@ public class WorkoutForegroundService extends Service {
         }
     }
 
+    // ✅ ENHANCED NOTIFICATION BUILDER
     private Notification buildNotification() {
+        // 1. Intent to open Activity when clicking the notification body
         Intent notificationIntent = new Intent(this, WorkoutActivity.class);
+        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(
-                this,
-                0,
-                notificationIntent,
+                this, 0, notificationIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        // 2. Prepare Action Intents (Pause, Resume, Stop)
+        Intent pauseIntent = new Intent(this, WorkoutForegroundService.class).setAction(ACTION_PAUSE_TIMER);
+        PendingIntent pPause = PendingIntent.getService(this, 1, pauseIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        Intent resumeIntent = new Intent(this, WorkoutForegroundService.class).setAction(ACTION_RESUME_TIMER);
+        PendingIntent pResume = PendingIntent.getService(this, 2, resumeIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        Intent stopIntent = new Intent(this, WorkoutForegroundService.class).setAction(ACTION_STOP_SERVICE);
+        PendingIntent pStop = PendingIntent.getService(this, 3, stopIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        // 3. Define content text
         String contentText;
+        String titleText;
         if (isResting) {
-            contentText = "Rest - " + formatTime(timeLeft);
+            titleText = "Rest Period";
+            contentText = "Next: " + currentWorkoutTitle + " (" + formatTime(timeLeft) + ")";
         } else {
-            contentText = currentWorkoutTitle + " - " + formatTime(timeLeft);
+            titleText = currentWorkoutTitle;
+            contentText = "Time Remaining: " + formatTime(timeLeft);
         }
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Workout in Progress")
+        // 4. Build Notification with MediaStyle
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(titleText)
                 .setContentText(contentText)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_launcher_foreground) // Ensure this icon exists
                 .setContentIntent(pendingIntent)
-                .setOngoing(true) // Can't be dismissed
+                .setOngoing(true)
+                .setOnlyAlertOnce(true) // Prevents sound/vibration on every second update
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
-                .build();
+
+                // ✅ Add MediaStyle
+                .setStyle(new MediaStyle()
+                        .setShowActionsInCompactView(0, 1)); // Show first 2 actions (Play/Pause + Stop) in compact view
+
+        // 5. Add Actions Dynamically
+        // Action 0: Play or Pause
+        if (isTimerRunning) {
+            // currently running -> show Pause button
+            builder.addAction(R.drawable.pause, "Pause", pPause);
+        } else {
+            // currently paused -> show Resume button
+            builder.addAction(R.drawable.playbutton, "Resume", pResume);
+        }
+
+        // Action 1: Stop
+        builder.addAction(R.drawable.stopbutton, "Stop", pStop);
+
+        return builder.build();
     }
 
     private void updateNotification() {
@@ -171,47 +212,42 @@ public class WorkoutForegroundService extends Service {
         return String.format("%d:%02d", minutes, secs);
     }
 
-    // ✅ START TIMER - Runs independently of Activity
     private void startTimer() {
-        stopTimer(); // Stop any existing timer first
-
-        Log.d(TAG, "⏱️ Starting timer: " + timeLeft + " seconds");
+        stopTimer();
         isTimerRunning = true;
+        Log.d(TAG, "⏱️ Timer started: " + timeLeft);
 
         timerRunnable = new Runnable() {
             @Override
             public void run() {
+                // Broadcast update
+                Intent intent = new Intent("TIMER_UPDATE");
+                intent.putExtra("timeLeft", timeLeft);
+                intent.putExtra("workoutTitle", currentWorkoutTitle);
+                intent.putExtra("isResting", isResting);
+                LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(intent);
+
+                // Update notification UI
+                updateNotification();
+
                 if (timeLeft > 0) {
-                    // Broadcast timer update to Activity
-                    Intent intent = new Intent("TIMER_UPDATE");
-                    intent.putExtra("timeLeft", timeLeft);
-                    intent.putExtra("workoutTitle", currentWorkoutTitle);
-                    intent.putExtra("isResting", isResting);
-                    LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(intent);
-
-                    // Update notification every 5 seconds (battery optimization)
-                    if (timeLeft % 5 == 0) {
-                        updateNotification();
-                    }
-
                     timeLeft--;
                     timerHandler.postDelayed(this, 1000);
                 } else {
-                    // Timer completed
-                    Log.d(TAG, "✅ Timer completed for: " + currentWorkoutTitle);
-
-                    // Broadcast completion
-                    Intent intent = new Intent("TIMER_COMPLETE");
-                    intent.putExtra("workoutTitle", currentWorkoutTitle);
-                    intent.putExtra("isResting", isResting);
-                    LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(intent);
-
+                    Log.d(TAG, "✅ Timer completed");
                     isTimerRunning = false;
+
+                    Intent completeIntent = new Intent("TIMER_COMPLETE");
+                    completeIntent.putExtra("workoutTitle", currentWorkoutTitle);
+                    completeIntent.putExtra("isResting", isResting);
+                    LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(completeIntent);
+
+                    // Update notification one last time to show 0:00 or "Complete"
+                    updateNotification();
                 }
             }
         };
 
-        // Start the timer
         timerHandler.post(timerRunnable);
     }
 
@@ -221,7 +257,6 @@ public class WorkoutForegroundService extends Service {
             timerRunnable = null;
         }
         isTimerRunning = false;
-        Log.d(TAG, "⏹️ Timer stopped");
     }
 
     private void pauseTimer() {
@@ -229,14 +264,12 @@ public class WorkoutForegroundService extends Service {
             timerHandler.removeCallbacks(timerRunnable);
         }
         isTimerRunning = false;
-        updateNotification();
-        Log.d(TAG, "⏸️ Timer paused");
+        updateNotification(); // Will switch icon to "Play"
     }
 
     private void resumeTimer() {
         if (!isTimerRunning && timeLeft > 0) {
-            startTimer();
-            Log.d(TAG, "▶️ Timer resumed");
+            startTimer(); // Will switch icon to "Pause"
         }
     }
 
@@ -244,6 +277,9 @@ public class WorkoutForegroundService extends Service {
     public void onDestroy() {
         super.onDestroy();
         stopTimer();
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
         Log.d(TAG, "🛑 Service destroyed");
     }
 
