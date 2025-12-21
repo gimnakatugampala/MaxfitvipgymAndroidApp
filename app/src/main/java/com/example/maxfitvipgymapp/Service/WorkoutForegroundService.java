@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -30,15 +31,17 @@ public class WorkoutForegroundService extends android.app.Service {
     public static final String EXTRA_IS_RESTING = "IS_RESTING";
     public static final String EXTRA_TOTAL_WORKOUTS = "TOTAL_WORKOUTS";
     public static final String EXTRA_CURRENT_WORKOUT_INDEX = "CURRENT_WORKOUT_INDEX";
+    public static final String ACTION_START_TIMER = "START_TIMER";
+    public static final String ACTION_STOP_TIMER = "STOP_TIMER";
 
     // Broadcast actions
     public static final String ACTION_WORKOUT_COMPLETE = "com.example.maxfitvipgymapp.WORKOUT_COMPLETE";
     public static final String ACTION_TIMER_TICK = "com.example.maxfitvipgymapp.TIMER_TICK";
 
-    private Handler handler = new Handler();
+    private Handler handler;
     private int timeLeft;
     private int totalDuration;
-    private String workoutTitle;
+    private String workoutTitle = "Workout";
     private boolean isResting = false;
     private int totalWorkouts = 1;
     private int currentWorkoutIndex = 0;
@@ -55,7 +58,7 @@ public class WorkoutForegroundService extends android.app.Service {
                 broadcastIntent.putExtra("timeLeft", timeLeft);
                 LocalBroadcastManager.getInstance(WorkoutForegroundService.this).sendBroadcast(broadcastIntent);
 
-                updateNotification(null);
+                updateNotification();
                 handler.postDelayed(this, 1000);
 
                 Log.d(TAG, "⏱️ Timer tick: " + timeLeft + "s remaining");
@@ -72,6 +75,14 @@ public class WorkoutForegroundService extends android.app.Service {
     };
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        handler = new Handler(Looper.getMainLooper());
+        createNotificationChannel();
+        Log.d(TAG, "✅ WorkoutForegroundService created");
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             String action = intent.getAction();
@@ -84,34 +95,42 @@ public class WorkoutForegroundService extends android.app.Service {
                 return START_NOT_STICKY;
             }
 
-            workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
-            int newTimeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
-            isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
-            totalWorkouts = intent.getIntExtra(EXTRA_TOTAL_WORKOUTS, 1);
-            currentWorkoutIndex = intent.getIntExtra(EXTRA_CURRENT_WORKOUT_INDEX, 0);
+            if (ACTION_START_TIMER.equals(action)) {
+                // Start/restart timer with new values
+                workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
+                timeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
+                totalDuration = timeLeft;
+                isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
+                totalWorkouts = intent.getIntExtra(EXTRA_TOTAL_WORKOUTS, 1);
+                currentWorkoutIndex = intent.getIntExtra(EXTRA_CURRENT_WORKOUT_INDEX, 0);
 
-            // Only restart timer if it's a significant change (new workout)
-            if (newTimeLeft > 0 && Math.abs(newTimeLeft - timeLeft) > 5) {
-                Log.d(TAG, "🔄 New workout/rest period: " + workoutTitle + " (" + newTimeLeft + "s)");
-                timeLeft = newTimeLeft;
-                totalDuration = newTimeLeft;
+                Log.d(TAG, "▶️ START_TIMER: " + workoutTitle + " (" + timeLeft + "s)");
                 startTimer();
-            } else if (newTimeLeft > 0) {
-                // Just an update, don't restart timer
-                timeLeft = newTimeLeft;
+            } else if (ACTION_STOP_TIMER.equals(action)) {
+                Log.d(TAG, "⏸️ STOP_TIMER");
+                stopTimer();
+            } else {
+                // Update only
+                workoutTitle = intent.getStringExtra(EXTRA_WORKOUT_TITLE);
+                int newTimeLeft = intent.getIntExtra(EXTRA_DURATION, 0);
+                isResting = intent.getBooleanExtra(EXTRA_IS_RESTING, false);
+                totalWorkouts = intent.getIntExtra(EXTRA_TOTAL_WORKOUTS, 1);
+                currentWorkoutIndex = intent.getIntExtra(EXTRA_CURRENT_WORKOUT_INDEX, 0);
+
+                if (newTimeLeft > 0) {
+                    timeLeft = newTimeLeft;
+                    totalDuration = newTimeLeft;
+                }
             }
         }
 
-        createNotificationChannel();
-
-        // Update notification immediately with current values
+        // Start foreground
         Notification notification = buildNotification();
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) {
             manager.notify(1, notification);
         }
 
-        // Start as foreground service
         try {
             startForeground(1, notification);
             Log.d(TAG, "✅ Foreground service started");
@@ -119,7 +138,6 @@ public class WorkoutForegroundService extends android.app.Service {
             Log.e(TAG, "❌ Error starting foreground service", e);
         }
 
-        // Return STICKY to keep service alive
         return START_STICKY;
     }
 
@@ -136,29 +154,10 @@ public class WorkoutForegroundService extends android.app.Service {
         Log.d(TAG, "⏸️ Timer stopped");
     }
 
-    private void updateNotification(String extraText) {
+    private void updateNotification() {
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        PendingIntent pendingIntent = buildPendingIntent();
-
-        Notification notification;
-
-        if (extraText != null) {
-            notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("Workout: " + workoutTitle)
-                    .setContentText(extraText)
-                    .setSmallIcon(R.drawable.notification)
-                    .setProgress(0, 0, false)
-                    .setOnlyAlertOnce(true)
-                    .setOngoing(false)
-                    .setContentIntent(pendingIntent)
-                    .setColor(Color.YELLOW)
-                    .build();
-        } else {
-            notification = buildNotification();
-        }
-
         if (manager != null) {
-            manager.notify(1, notification);
+            manager.notify(1, buildNotification());
         }
     }
 
