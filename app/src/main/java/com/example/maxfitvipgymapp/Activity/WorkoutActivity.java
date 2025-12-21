@@ -44,9 +44,12 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
+import com.example.maxfitvipgymapp.Activity.WorkoutSettingsActivity;
 import com.example.maxfitvipgymapp.Adapter.YouTubeAdapter;
 import com.example.maxfitvipgymapp.R;
+import com.example.maxfitvipgymapp.Repository.WorkoutRepository;
 import com.example.maxfitvipgymapp.Service.WorkoutForegroundService;
+import com.example.maxfitvipgymapp.Utils.SessionManager;
 import com.example.maxfitvipgymapp.Widget.WorkoutWidgetProvider;
 
 import java.text.SimpleDateFormat;
@@ -56,6 +59,9 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade;
 
@@ -98,17 +104,12 @@ public class WorkoutActivity extends AppCompatActivity {
     private int countdownVoiceStart = 10;
     private List<Integer> countdownNumbers = Arrays.asList(10, 3, 2, 1);
 
-    private Workout[] workouts = {
-            new Workout("WEIGHT LIFTING", false, 10, Arrays.asList(10, 10, 10),
-                    "https://images.pexels.com/photos/3289711/pexels-photo-3289711.jpeg",
-                    Arrays.asList("dQw4w9WgXcQ", "kXYiU_JCYtU")),
-            new Workout("CARDIO BLAST", true, 10, null,
-                    "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg",
-                    Arrays.asList("9bZkp7q19f0")),
-            new Workout("PUSH UPS", false, 10, Arrays.asList(15, 15, 15),
-                    "https://images.pexels.com/photos/1552106/pexels-photo-1552106.jpeg",
-                    Arrays.asList("9bZkp7q19f0", "dQw4w9WgXcQ"))
-    };
+    // ✅ Database integration
+    private List<Workout> workouts = new ArrayList<>();
+    private WorkoutRepository workoutRepository;
+    private SessionManager sessionManager;
+    private ExecutorService executorService;
+    private int currentMemberScheduleId = -1;
 
     private boolean isReceiverRegistered = false;
 
@@ -138,6 +139,11 @@ public class WorkoutActivity extends AppCompatActivity {
             isReceiverRegistered = true;
         }
 
+        // ✅ Initialize repositories
+        workoutRepository = new WorkoutRepository();
+        executorService = Executors.newSingleThreadExecutor();
+        sessionManager = new SessionManager(this);
+
         // ✅ Initialize AudioManager first
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
@@ -156,9 +162,14 @@ public class WorkoutActivity extends AppCompatActivity {
         scrollContainer = findViewById(R.id.scrollContainer);
 
         showVideoButton.setOnClickListener(v -> {
-            stopTimer();
-            playPauseButton.setImageResource(R.drawable.playbutton);
-            showYouTubeVideo(workouts[currentWorkoutIndex].getYoutubeUrls().get(0));
+            if (!workouts.isEmpty() && currentWorkoutIndex < workouts.size()) {
+                stopTimer();
+                playPauseButton.setImageResource(R.drawable.playbutton);
+                List<String> videoUrls = workouts.get(currentWorkoutIndex).getYoutubeUrls();
+                if (videoUrls != null && !videoUrls.isEmpty()) {
+                    showYouTubeVideo(videoUrls.get(0));
+                }
+            }
         });
 
         closeYoutubeButton.setOnClickListener(v -> {
@@ -176,7 +187,9 @@ public class WorkoutActivity extends AppCompatActivity {
                     .setPositiveButton("Yes", (dialog, which) -> {
                         stopTimer();
                         stopService(new Intent(WorkoutActivity.this, WorkoutForegroundService.class));
-                        sendWorkoutCancelledNotification(workouts[currentWorkoutIndex].getTitle());
+                        if (!workouts.isEmpty() && currentWorkoutIndex < workouts.size()) {
+                            sendWorkoutCancelledNotification(workouts.get(currentWorkoutIndex).getTitle());
+                        }
                         Intent intent = new Intent(WorkoutActivity.this, MainActivity.class);
                         intent.putExtra("navigateTo", "home");
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -225,7 +238,154 @@ public class WorkoutActivity extends AppCompatActivity {
             }
         });
 
-        setupWorkout();
+        // ✅ Load workouts from database
+        loadTodayWorkouts();
+    }
+
+    // ✅ NEW: Load today's workouts from database
+    private void loadTodayWorkouts() {
+        int memberId = sessionManager.getMemberId();
+
+        if (memberId == -1) {
+            Log.e(TAG, "Member ID not found");
+            Toast.makeText(this, "Error: Member not found", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        executorService.execute(() -> {
+            try {
+                // Get member's active schedule
+                Map<String, Object> memberSchedule = workoutRepository.getMemberWorkoutSchedule(memberId);
+
+                if (memberSchedule == null) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "No active workout schedule found", Toast.LENGTH_LONG).show();
+                        finish();
+                    });
+                    return;
+                }
+
+                currentMemberScheduleId = (int) memberSchedule.get("id");
+
+                // Get today's day name
+                Calendar calendar = Calendar.getInstance();
+                String[] days = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+                String todayDayName = days[calendar.get(Calendar.DAY_OF_WEEK) - 1];
+
+                Log.d(TAG, "Loading workouts for: " + todayDayName);
+
+                // Get today's workout details
+                List<Map<String, Object>> todayWorkoutDetails =
+                        workoutRepository.getMemberWorkoutScheduleDetails(currentMemberScheduleId, todayDayName);
+
+                if (todayWorkoutDetails == null || todayWorkoutDetails.isEmpty()) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "No workouts scheduled for today", Toast.LENGTH_LONG).show();
+                        finish();
+                    });
+                    return;
+                }
+
+                // Check if it's a rest day
+                boolean isRestDay = false;
+                for (Map<String, Object> detail : todayWorkoutDetails) {
+                    Boolean restDay = (Boolean) detail.get("is_rest_day");
+                    if (restDay != null && restDay) {
+                        isRestDay = true;
+                        break;
+                    }
+                }
+
+                if (isRestDay) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Today is a rest day!", Toast.LENGTH_LONG).show();
+                        finish();
+                    });
+                    return;
+                }
+
+                // Convert database workouts to Workout objects
+                workouts.clear();
+                for (Map<String, Object> detail : todayWorkoutDetails) {
+                    String workoutName = (String) detail.get("name");
+                    String description = (String) detail.get("description");
+                    String imageUrl = (String) detail.get("image_url");
+
+                    // Parse duration (in minutes from DB, convert to seconds)
+                    String durationStr = (String) detail.get("duration_minutes");
+                    int durationSeconds = 60; // default 60 seconds
+                    if (durationStr != null && !durationStr.isEmpty()) {
+                        try {
+                            durationSeconds = Integer.parseInt(durationStr) * 60; // convert to seconds
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "Invalid duration: " + durationStr);
+                        }
+                    }
+
+                    // Parse sets and reps
+                    String setStr = (String) detail.get("set_no");
+                    String repStr = (String) detail.get("rep_no");
+
+                    List<Integer> repsPerSet = null;
+                    boolean isDurationBased = true;
+
+                    // If we have sets and reps, it's set-based
+                    if (setStr != null && !setStr.isEmpty() && repStr != null && !repStr.isEmpty()) {
+                        try {
+                            int sets = Integer.parseInt(setStr);
+                            int reps = Integer.parseInt(repStr);
+
+                            isDurationBased = false;
+                            repsPerSet = new ArrayList<>();
+                            for (int i = 0; i < sets; i++) {
+                                repsPerSet.add(reps);
+                            }
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "Invalid sets/reps: " + setStr + "/" + repStr);
+                        }
+                    }
+
+                    // Get workout videos
+                    int workoutId = (int) detail.get("workout_id");
+                    List<String> videoUrls = workoutRepository.getWorkoutVideos(workoutId);
+
+                    // Use default image if none provided
+                    if (imageUrl == null || imageUrl.isEmpty()) {
+                        imageUrl = "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg";
+                    }
+
+                    Workout workout = new Workout(
+                            workoutName != null ? workoutName : "Workout",
+                            isDurationBased,
+                            durationSeconds,
+                            repsPerSet,
+                            imageUrl,
+                            videoUrls
+                    );
+
+                    workouts.add(workout);
+                    Log.d(TAG, "Added workout: " + workoutName + " (duration: " + durationSeconds + "s, sets: " + (repsPerSet != null ? repsPerSet.size() : 0) + ")");
+                }
+
+                runOnUiThread(() -> {
+                    if (workouts.isEmpty()) {
+                        Toast.makeText(this, "No workouts found for today", Toast.LENGTH_SHORT).show();
+                        finish();
+                    } else {
+                        Log.d(TAG, "Loaded " + workouts.size() + " workouts");
+                        setupWorkout(); // Start first workout
+                    }
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading workouts", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Error loading workouts: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    finish();
+                });
+            }
+        });
     }
 
     // ✅ FIXED: Initialize Text-to-Speech with proper error handling
@@ -264,7 +424,7 @@ public class WorkoutActivity extends AppCompatActivity {
                     tts.setAudioAttributes(audioAttributes);
                 }
 
-                // ✅ Set up utterance listener (without audio focus to avoid conflicts)
+                // ✅ Set up utterance listener
                 tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                     @Override
                     public void onStart(String utteranceId) {
@@ -283,7 +443,7 @@ public class WorkoutActivity extends AppCompatActivity {
                 });
 
                 isTTSReady = true;
-                Log.d(TAG, "✅ TTS ready - Voice guidance: " + voiceGuidanceEnabled + ", Rate: " + speechRate + ", Pitch: " + speechPitch);
+                Log.d(TAG, "✅ TTS ready - Voice guidance: " + voiceGuidanceEnabled);
 
                 // ✅ Increase media volume if too low
                 if (audioManager != null) {
@@ -291,7 +451,6 @@ public class WorkoutActivity extends AppCompatActivity {
                     int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
                     Log.d(TAG, "📢 Current media volume: " + currentVolume + "/" + maxVolume);
 
-                    // If volume is too low, increase it
                     if (currentVolume < maxVolume / 3) {
                         Log.d(TAG, "⚠️ Volume too low, increasing...");
                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0);
@@ -316,14 +475,13 @@ public class WorkoutActivity extends AppCompatActivity {
             return;
         }
 
-        // ✅ FORCE MAXIMUM MEDIA VOLUME (critical for hearing TTS!)
+        // ✅ FORCE MAXIMUM MEDIA VOLUME
         if (audioManager != null) {
             int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
             int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
 
             Log.d(TAG, "📢 Current media volume BEFORE: " + currentVolume + "/" + maxVolume);
 
-            // Force volume to MAXIMUM and SHOW UI so user sees it
             audioManager.setStreamVolume(
                     AudioManager.STREAM_MUSIC,
                     maxVolume,
@@ -333,52 +491,20 @@ public class WorkoutActivity extends AppCompatActivity {
             int newVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
             Log.d(TAG, "🔊 FORCED MEDIA VOLUME TO: " + newVolume + "/" + maxVolume);
 
-            // Force audio mode and speaker
             audioManager.setMode(AudioManager.MODE_NORMAL);
             audioManager.setSpeakerphoneOn(true);
             Log.d(TAG, "📢 FORCED SPEAKERPHONE ON");
         }
 
-        // Test after delay
         new Handler().postDelayed(() -> {
             if (voiceGuidanceEnabled) {
                 Log.d(TAG, "🎤 === TESTING TTS: 'Voice guidance ready' ===");
                 speak("Voice guidance ready");
             } else {
-                Log.d(TAG, "⚠️ Voice guidance DISABLED in settings - enable it first!");
+                Log.d(TAG, "⚠️ Voice guidance DISABLED in settings");
                 Toast.makeText(this, "Voice guidance is disabled. Enable it in settings.", Toast.LENGTH_LONG).show();
             }
         }, 2000);
-    }
-
-    // ✅ FIXED: Request audio focus properly
-    private void requestAudioFocus() {
-        if (audioManager == null) return;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Modern way (API 26+)
-            AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build();
-
-            // ✅ FIXED: Removed setAcceptsDelayedFocusGain to avoid requiring listener
-            audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                    .setAudioAttributes(audioAttributes)
-                    .setWillPauseWhenDucked(false)
-                    .build();
-
-            int result = audioManager.requestAudioFocus(audioFocusRequest);
-            Log.d(TAG, "Audio focus requested (API 26+): " + (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED ? "GRANTED" : "FAILED"));
-        } else {
-            // Legacy way (API < 26)
-            int result = audioManager.requestAudioFocus(
-                    null,
-                    AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
-            );
-            Log.d(TAG, "Audio focus requested (Legacy): " + (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED ? "GRANTED" : "FAILED"));
-        }
     }
 
     // ✅ FIXED: Abandon audio focus properly
@@ -413,10 +539,9 @@ public class WorkoutActivity extends AppCompatActivity {
 
         Log.d(TAG, "=== SPEAKING: " + text + " ===");
 
-        // ✅ CRITICAL: Set audio stream to MUSIC (most reliable for hearing audio)
         HashMap<String, String> params = new HashMap<>();
         params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, TTS_UTTERANCE_ID);
-        params.put(TextToSpeech.Engine.KEY_PARAM_VOLUME, "1.0"); // Max volume
+        params.put(TextToSpeech.Engine.KEY_PARAM_VOLUME, "1.0");
         params.put(TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(AudioManager.STREAM_MUSIC));
 
         int result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
@@ -425,7 +550,6 @@ public class WorkoutActivity extends AppCompatActivity {
             Log.e(TAG, "❌ TTS speak() returned ERROR");
         } else {
             Log.d(TAG, "✅ TTS speak() called successfully");
-            // Also log media volume for debugging
             if (audioManager != null) {
                 int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
                 int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
@@ -506,7 +630,12 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void setupWorkout() {
-        Workout workout = workouts[currentWorkoutIndex];
+        if (workouts.isEmpty() || currentWorkoutIndex >= workouts.size()) {
+            Log.e(TAG, "No workout available at index: " + currentWorkoutIndex);
+            return;
+        }
+
+        Workout workout = workouts.get(currentWorkoutIndex);
         workoutTitle.setText(workout.getTitle());
         timeLeft = workout.getTime();
         currentSet = 1;
@@ -580,9 +709,13 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void updateServiceTimer() {
+        if (workouts.isEmpty() || currentWorkoutIndex >= workouts.size()) {
+            return;
+        }
+
         Intent serviceIntent = new Intent(this, WorkoutForegroundService.class);
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_DURATION, timeLeft);
-        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workouts[currentWorkoutIndex].getTitle());
+        serviceIntent.putExtra(WorkoutForegroundService.EXTRA_WORKOUT_TITLE, workouts.get(currentWorkoutIndex).getTitle());
         serviceIntent.putExtra(WorkoutForegroundService.EXTRA_IS_RESTING, isResting);
         startService(serviceIntent);
     }
@@ -599,7 +732,11 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void handleTimerCompletion() {
-        Workout current = workouts[currentWorkoutIndex];
+        if (workouts.isEmpty() || currentWorkoutIndex >= workouts.size()) {
+            return;
+        }
+
+        Workout current = workouts.get(currentWorkoutIndex);
         playSoundEffect();
 
         if (!current.isDurationBased() && current.getRepsPerSet() != null) {
@@ -649,7 +786,7 @@ public class WorkoutActivity extends AppCompatActivity {
         if (isTransitioning) return;
         isTransitioning = true;
 
-        if (currentWorkoutIndex < workouts.length - 1) {
+        if (currentWorkoutIndex < workouts.size() - 1) {
             isResting = true;
             timeLeft = 60;
             timerText.setText("1:00");
@@ -658,7 +795,7 @@ public class WorkoutActivity extends AppCompatActivity {
             setInfoText.setVisibility(View.VISIBLE);
 
             // ✅ Announce rest before next workout
-            announceRestPeriod(60, workouts[currentWorkoutIndex + 1].getTitle());
+            announceRestPeriod(60, workouts.get(currentWorkoutIndex + 1).getTitle());
 
             timerRunnable = new Runnable() {
                 @Override
@@ -860,7 +997,11 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void updateSetInfo() {
-        Workout current = workouts[currentWorkoutIndex];
+        if (workouts.isEmpty() || currentWorkoutIndex >= workouts.size()) {
+            return;
+        }
+
+        Workout current = workouts.get(currentWorkoutIndex);
         if (current.getRepsPerSet() == null) return;
 
         StringBuilder builder = new StringBuilder();
@@ -915,8 +1056,19 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     private void showYouTubeVideo(String videoId) {
+        if (workouts.isEmpty() || currentWorkoutIndex >= workouts.size()) {
+            return;
+        }
+
         youtubeModal.setVisibility(View.VISIBLE);
-        List<String> videoList = workouts[currentWorkoutIndex].getYoutubeUrls();
+        List<String> videoList = workouts.get(currentWorkoutIndex).getYoutubeUrls();
+
+        if (videoList == null || videoList.isEmpty()) {
+            Toast.makeText(this, "No videos available for this workout", Toast.LENGTH_SHORT).show();
+            youtubeModal.setVisibility(View.GONE);
+            return;
+        }
+
         YouTubeAdapter adapter = new YouTubeAdapter(videoList);
         ViewPager2 viewPager = findViewById(R.id.viewPager);
         viewPager.setAdapter(adapter);
@@ -927,12 +1079,18 @@ public class WorkoutActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1001) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                sendWorkoutCancelledNotification(workouts[currentWorkoutIndex].getTitle());
+                if (!workouts.isEmpty() && currentWorkoutIndex < workouts.size()) {
+                    sendWorkoutCancelledNotification(workouts.get(currentWorkoutIndex).getTitle());
+                }
             }
         }
     }
 
     private void sendWorkoutCancelledNotification(String workoutTitle) {
+        if (workoutTitle == null) {
+            workoutTitle = "Workout";
+        }
+
         String channelId = "workout_channel";
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1007,6 +1165,12 @@ public class WorkoutActivity extends AppCompatActivity {
         if (mediaPlayer != null) {
             mediaPlayer.release();
         }
+
+        // ✅ Shutdown executor
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdown();
+        }
+
         super.onDestroy();
 
         if (isReceiverRegistered) {
@@ -1024,6 +1188,7 @@ public class WorkoutActivity extends AppCompatActivity {
         }
     }
 
+    // ✅ Inner Workout class
     static class Workout {
         private String title;
         private boolean isDurationBased;
