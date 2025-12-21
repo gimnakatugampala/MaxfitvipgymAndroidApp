@@ -646,8 +646,9 @@ public class WorkoutActivity extends AppCompatActivity {
         String announcement;
         if (workout.isByDuration() || !workout.hasValidReps()) {
             // Duration-based workout
-            announcement = String.format("Starting %s. Duration: %d seconds. Go!",
-                    workout.getName(), workout.getDuration());
+            String durationText = formatTimeForSpeech(workout.getDuration());
+            announcement = String.format("Starting %s. Duration: %s. Go!",
+                    workout.getName(), durationText);
         } else {
             // Set-based workout
             int reps = workout.getRepsPerSet().get(currentSet - 1);
@@ -661,8 +662,41 @@ public class WorkoutActivity extends AppCompatActivity {
 
     // ✅ Announce rest period
     private void announceRestPeriod(int seconds, String nextActivity) {
-        String announcement = String.format("Rest for %d seconds. Next: %s", seconds, nextActivity);
+        String timeText = formatTimeForSpeech(seconds);
+        String announcement = String.format("Rest for %s. Next: %s", timeText, nextActivity);
         speak(announcement);
+    }
+
+    // ✅ NEW: Format time in seconds to proper speech format
+    private String formatTimeForSpeech(int totalSeconds) {
+        if (totalSeconds < 60) {
+            // Less than 1 minute - say in seconds
+            return totalSeconds + (totalSeconds == 1 ? " second" : " seconds");
+        } else if (totalSeconds < 3600) {
+            // Less than 1 hour - say in minutes
+            int minutes = totalSeconds / 60;
+            int seconds = totalSeconds % 60;
+
+            if (seconds == 0) {
+                return minutes + (minutes == 1 ? " minute" : " minutes");
+            } else {
+                return String.format("%d %s and %d %s",
+                        minutes, (minutes == 1 ? "minute" : "minutes"),
+                        seconds, (seconds == 1 ? "second" : "seconds"));
+            }
+        } else {
+            // 1 hour or more - say in hours and minutes
+            int hours = totalSeconds / 3600;
+            int minutes = (totalSeconds % 3600) / 60;
+
+            if (minutes == 0) {
+                return hours + (hours == 1 ? " hour" : " hours");
+            } else {
+                return String.format("%d %s and %d %s",
+                        hours, (hours == 1 ? "hour" : "hours"),
+                        minutes, (minutes == 1 ? "minute" : "minutes"));
+            }
+        }
     }
 
     // ✅ Announce countdown
@@ -753,8 +787,9 @@ public class WorkoutActivity extends AppCompatActivity {
 
         playPauseButton.setImageResource(R.drawable.pause);
 
-        // ✅ Announce workout start after 2 second delay
-        new Handler().postDelayed(() -> announceWorkoutStart(workout), 2000);
+        // ✅ FIX: Announce workout start immediately (no delay)
+        // The 2-second delay was preventing the first workout from being announced
+        announceWorkoutStart(workout);
 
         startTimer();
     }
@@ -846,7 +881,7 @@ public class WorkoutActivity extends AppCompatActivity {
                 if (currentSet < current.getRepsPerSet().size()) {
                     // More sets - rest period
                     isResting = true;
-                    timeLeft = current.getRestSeconds(); // ✅ Use workout's rest time
+                    timeLeft = current.getRestSeconds();
                     workoutTitle.setText("REST - " + current.getName());
                     setInfoText.setText("Rest before Set " + (currentSet + 1));
 
@@ -880,8 +915,9 @@ public class WorkoutActivity extends AppCompatActivity {
             setInfoText.setText("Rest before next workout");
             setInfoText.setVisibility(View.VISIBLE);
 
-            // ✅ Announce rest before next workout
-            announceRestPeriod(60, workouts.get(currentWorkoutIndex + 1).getTitle());
+            // ✅ FIXED: Announce rest with proper time format
+            String nextWorkoutName = workouts.get(currentWorkoutIndex + 1).getTitle();
+            announceRestPeriod(60, nextWorkoutName);
 
             timerRunnable = new Runnable() {
                 @Override
@@ -890,7 +926,7 @@ public class WorkoutActivity extends AppCompatActivity {
                         updateTimerText();
                         updateServiceTimer();
 
-                        // ✅ Countdown announcements
+                        // Countdown announcements
                         if (timeLeft <= countdownVoiceStart) {
                             announceCountdown(timeLeft);
                         }
