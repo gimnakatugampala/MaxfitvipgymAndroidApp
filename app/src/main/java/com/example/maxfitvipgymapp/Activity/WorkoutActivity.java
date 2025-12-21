@@ -221,6 +221,8 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     // ✅ NEW: Initialize Text-to-Speech
+    // ✅ NEW: Initialize Text-to-Speech
+    // ✅ NEW: Initialize Text-to-Speech
     private void initializeTextToSpeech() {
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
@@ -232,8 +234,15 @@ public class WorkoutActivity extends AppCompatActivity {
                     isTTSReady = false;
                 } else {
                     isTTSReady = true;
-                    tts.setSpeechRate(0.9f); // Slightly slower for clarity
-                    tts.setPitch(1.0f);
+
+                    // Load settings from WorkoutSettingsActivity
+                    float speechRate = WorkoutSettingsActivity.getSpeechRate(this);
+                    float speechPitch = WorkoutSettingsActivity.getSpeechPitch(this);
+                    voiceGuidanceEnabled = WorkoutSettingsActivity.isVoiceGuidanceEnabled(this);
+                    countdownVoiceStart = WorkoutSettingsActivity.getCountdownStart(this);
+
+                    tts.setSpeechRate(speechRate);
+                    tts.setPitch(speechPitch);
 
                     // Set up listener for when speech completes
                     tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -256,6 +265,8 @@ public class WorkoutActivity extends AppCompatActivity {
                     });
 
                     Log.d("TTS", "Text-to-Speech initialized successfully");
+                    Log.d("TTS", "Voice guidance enabled: " + voiceGuidanceEnabled);
+                    Log.d("TTS", "Speech rate: " + speechRate + ", Pitch: " + speechPitch);
                 }
             } else {
                 Log.e("TTS", "Text-to-Speech initialization failed");
