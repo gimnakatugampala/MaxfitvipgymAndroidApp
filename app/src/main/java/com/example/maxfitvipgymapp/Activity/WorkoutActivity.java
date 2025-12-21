@@ -255,7 +255,6 @@ public class WorkoutActivity extends AppCompatActivity {
 
         executorService.execute(() -> {
             try {
-                // Get member's active schedule
                 Map<String, Object> memberSchedule = workoutRepository.getMemberWorkoutSchedule(memberId);
 
                 if (memberSchedule == null) {
@@ -268,14 +267,12 @@ public class WorkoutActivity extends AppCompatActivity {
 
                 currentMemberScheduleId = (int) memberSchedule.get("id");
 
-                // Get today's day name
                 Calendar calendar = Calendar.getInstance();
                 String[] days = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
                 String todayDayName = days[calendar.get(Calendar.DAY_OF_WEEK) - 1];
 
                 Log.d(TAG, "Loading workouts for: " + todayDayName);
 
-                // Get today's workout details
                 List<Map<String, Object>> todayWorkoutDetails =
                         workoutRepository.getMemberWorkoutScheduleDetails(currentMemberScheduleId, todayDayName);
 
@@ -287,7 +284,7 @@ public class WorkoutActivity extends AppCompatActivity {
                     return;
                 }
 
-                // Check if it's a rest day
+                // Check for rest day
                 boolean isRestDay = false;
                 for (Map<String, Object> detail : todayWorkoutDetails) {
                     Boolean restDay = (Boolean) detail.get("is_rest_day");
@@ -312,12 +309,22 @@ public class WorkoutActivity extends AppCompatActivity {
                     String description = (String) detail.get("description");
                     String imageUrl = (String) detail.get("image_url");
 
-                    // Parse duration (in minutes from DB, convert to seconds)
+                    // ✅ FIX: Parse duration correctly
                     String durationStr = (String) detail.get("duration_minutes");
-                    int durationSeconds = 60; // default 60 seconds
+                    int durationSeconds = 60; // default
+
                     if (durationStr != null && !durationStr.isEmpty()) {
                         try {
-                            durationSeconds = Integer.parseInt(durationStr) * 60; // convert to seconds
+                            int durationValue = Integer.parseInt(durationStr);
+
+                            // Smart conversion: small numbers = minutes, large = seconds
+                            if (durationValue <= 10) {
+                                durationSeconds = durationValue * 60;
+                                Log.d(TAG, "Duration: " + durationValue + " min → " + durationSeconds + " sec");
+                            } else {
+                                durationSeconds = durationValue;
+                                Log.d(TAG, "Duration: " + durationValue + " sec");
+                            }
                         } catch (NumberFormatException e) {
                             Log.w(TAG, "Invalid duration: " + durationStr);
                         }
@@ -330,7 +337,7 @@ public class WorkoutActivity extends AppCompatActivity {
                     List<Integer> repsPerSet = null;
                     boolean isDurationBased = true;
 
-                    // If we have sets and reps, it's set-based
+                    // Determine workout type
                     if (setStr != null && !setStr.isEmpty() && repStr != null && !repStr.isEmpty()) {
                         try {
                             int sets = Integer.parseInt(setStr);
@@ -341,6 +348,7 @@ public class WorkoutActivity extends AppCompatActivity {
                             for (int i = 0; i < sets; i++) {
                                 repsPerSet.add(reps);
                             }
+                            Log.d(TAG, "Set-based: " + sets + " sets × " + reps + " reps");
                         } catch (NumberFormatException e) {
                             Log.w(TAG, "Invalid sets/reps: " + setStr + "/" + repStr);
                         }
@@ -350,22 +358,24 @@ public class WorkoutActivity extends AppCompatActivity {
                     int workoutId = (int) detail.get("workout_id");
                     List<String> videoUrls = workoutRepository.getWorkoutVideos(workoutId);
 
-                    // Use default image if none provided
+                    // Default image
                     if (imageUrl == null || imageUrl.isEmpty()) {
                         imageUrl = "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg";
                     }
 
+                    // ✅ Create Workout with rest time
                     Workout workout = new Workout(
                             workoutName != null ? workoutName : "Workout",
                             isDurationBased,
                             durationSeconds,
                             repsPerSet,
                             imageUrl,
-                            videoUrls
+                            videoUrls,
+                            60 // 60 seconds rest between sets
                     );
 
                     workouts.add(workout);
-                    Log.d(TAG, "Added workout: " + workoutName + " (duration: " + durationSeconds + "s, sets: " + (repsPerSet != null ? repsPerSet.size() : 0) + ")");
+                    Log.d(TAG, "✅ Added: " + workout);
                 }
 
                 runOnUiThread(() -> {
@@ -373,8 +383,8 @@ public class WorkoutActivity extends AppCompatActivity {
                         Toast.makeText(this, "No workouts found for today", Toast.LENGTH_SHORT).show();
                         finish();
                     } else {
-                        Log.d(TAG, "Loaded " + workouts.size() + " workouts");
-                        setupWorkout(); // Start first workout
+                        Log.d(TAG, "✅ Loaded " + workouts.size() + " workouts");
+                        setupWorkout();
                     }
                 });
 
@@ -559,16 +569,27 @@ public class WorkoutActivity extends AppCompatActivity {
     }
 
     // ✅ Announce workout start
+    // ✅ Announce workout start
+    // ✅ Announce workout start - FIXED
     private void announceWorkoutStart(Workout workout) {
-        String announcement;
-        if (workout.isDurationBased()) {
-            announcement = String.format("Starting %s. Duration: %d seconds. Go!",
-                    workout.getTitle(), workout.getTime());
-        } else {
-            announcement = String.format("Starting %s. Set %d of %d. %d repetitions. Go!",
-                    workout.getTitle(), currentSet, workout.getRepsPerSet().size(),
-                    workout.getRepsPerSet().get(currentSet - 1));
+        if (!isTTSReady || !voiceGuidanceEnabled) {
+            Log.d(TAG, "TTS not ready or voice disabled");
+            return;
         }
+
+        String announcement;
+        if (workout.isByDuration() || !workout.hasValidReps()) {
+            // Duration-based workout
+            announcement = String.format("Starting %s. Duration: %d seconds. Go!",
+                    workout.getName(), workout.getDuration());
+        } else {
+            // Set-based workout
+            int reps = workout.getRepsPerSet().get(currentSet - 1);
+            announcement = String.format("Starting %s. Set %d of %d. %d repetitions. Go!",
+                    workout.getName(), currentSet, workout.getRepsPerSet().size(), reps);
+        }
+
+        Log.d(TAG, "🎤 Announcing: " + announcement);
         speak(announcement);
     }
 
@@ -739,43 +760,42 @@ public class WorkoutActivity extends AppCompatActivity {
         Workout current = workouts.get(currentWorkoutIndex);
         playSoundEffect();
 
-        if (!current.isDurationBased() && current.getRepsPerSet() != null) {
+        if (!current.isByDuration() && current.hasValidReps()) {
             if (isResting) {
+                // Rest complete, start next set
                 isResting = false;
                 currentSet++;
-                timeLeft = current.getTime();
-                workoutTitle.setText(current.getTitle());
+                timeLeft = current.getDuration();
+                workoutTitle.setText(current.getName());
                 updateSetInfo();
                 updateServiceTimer();
 
-                // ✅ Announce new set
                 announceWorkoutStart(current);
-
                 startTimer();
             } else {
+                // Set complete
                 completedSets.add(currentSet);
-
-                // ✅ Announce set completion
                 announceSetCompletion(currentSet, current.getRepsPerSet().size());
 
                 if (currentSet < current.getRepsPerSet().size()) {
+                    // More sets - rest period
                     isResting = true;
-                    timeLeft = 60;
-                    workoutTitle.setText("REST - " + current.getTitle());
+                    timeLeft = current.getRestSeconds(); // ✅ Use workout's rest time
+                    workoutTitle.setText("REST - " + current.getName());
                     setInfoText.setText("Rest before Set " + (currentSet + 1));
 
-                    // ✅ Announce rest
-                    announceRestPeriod(60, "Set " + (currentSet + 1));
-
+                    announceRestPeriod(timeLeft, "Set " + (currentSet + 1));
                     updateServiceTimer();
                     startTimer();
                 } else {
+                    // All sets done
                     sendWorkoutCompletedNotification();
                     announceWorkoutCompletion();
                     moveToNextWorkout();
                 }
             }
         } else {
+            // Duration workout complete
             sendWorkoutCompletedNotification();
             announceWorkoutCompletion();
             moveToNextWorkout();

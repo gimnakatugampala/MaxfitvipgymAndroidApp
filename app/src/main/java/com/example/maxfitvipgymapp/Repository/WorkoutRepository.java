@@ -132,6 +132,8 @@ public class WorkoutRepository {
             String filter = "member_schedule_id=eq." + memberScheduleId + "&day=eq." + day + "&order=order_index.asc";
             JSONArray result = client.select(SupabaseConfig.TABLE_MEMBER_WORKOUT_SCHEDULE_DETAILS, filter);
 
+            Log.d(TAG, "📊 Fetching workouts for day: " + day + " (member_schedule_id: " + memberScheduleId + ")");
+
             for (int i = 0; i < result.length(); i++) {
                 JSONObject obj = result.getJSONObject(i);
                 Map<String, Object> workout = new HashMap<>();
@@ -139,7 +141,13 @@ public class WorkoutRepository {
                 workout.put("workout_id", obj.optInt("workout_id"));
                 workout.put("set_no", obj.optString("set_no"));
                 workout.put("rep_no", obj.optString("rep_no"));
-                workout.put("duration_minutes", obj.optString("duration_minutes"));
+
+                // ✅ FIX: Parse duration_minutes correctly
+                String durationStr = obj.optString("duration_minutes");
+                workout.put("duration_minutes", durationStr);
+
+                Log.d(TAG, "  📝 Workout detail: duration_minutes='" + durationStr + "', set_no='" + obj.optString("set_no") + "', rep_no='" + obj.optString("rep_no") + "'");
+
                 workout.put("completed", obj.optBoolean("completed"));
                 workout.put("is_rest_day", obj.optBoolean("is_rest_day"));
 
@@ -148,12 +156,16 @@ public class WorkoutRepository {
                 Map<String, Object> workoutDetails = getWorkoutById(workoutId);
                 if (workoutDetails != null) {
                     workout.putAll(workoutDetails);
+                    Log.d(TAG, "  ✅ Added workout: " + workoutDetails.get("name"));
                 }
 
                 workouts.add(workout);
             }
+
+            Log.d(TAG, "✅ Total workouts loaded: " + workouts.size());
         } catch (Exception e) {
             Log.e(TAG, "Error getting member workout schedule details: " + e.getMessage());
+            e.printStackTrace();
         }
         return workouts;
     }
