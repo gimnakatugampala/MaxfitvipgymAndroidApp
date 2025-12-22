@@ -1,160 +1,435 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000"
+    android:fillViewport="true"
     tools:context=".Activity.VerificationPhoneNumberActivity">
 
-    <!-- Title Text -->
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="wrap_content"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Enter Verification Code"
-        android:textSize="26sp"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/codeInputContainer"
-        android:layout_marginTop="40dp"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp" />
+        android:paddingBottom="32dp">
 
-    <!-- Caption Text -->
-    <TextView
-        android:id="@+id/caption"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Please check your SMS inbox to get the code."
-        android:textColor="#FFFFFF"
-        android:textSize="20sp"
-        android:textStyle="italic"
-        android:textAlignment="center"
-        app:layout_constraintTop_toBottomOf="@id/title"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="20dp"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp" />
+        <!-- Back Button -->
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/arrow"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="#FFFFFF"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            android:layout_marginTop="24dp"
+            android:layout_marginStart="16dp"
+            android:clickable="true"
+            android:focusable="true"/>
 
-    <!-- Input Container for the Code -->
-    <LinearLayout
-        android:id="@+id/codeInputContainer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        app:layout_constraintTop_toBottomOf="@id/caption"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="30dp">
-
-        <!-- Input Fields for each digit -->
-        <EditText
-            android:id="@+id/codeInput1"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:hint="–"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#BDBDBD"
-            android:textSize="26sp"
-            android:backgroundTint="#FFD300"
+        <!-- Progress Indicator -->
+        <LinearLayout
+            android:id="@+id/progressIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:maxLength="1"
-            android:inputType="number"
-            android:importantForAccessibility="yes"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:layout_marginEnd="10dp" />
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="28dp">
 
-        <EditText
-            android:id="@+id/codeInput2"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:hint="–"
+            <View
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:background="#FFD300"
+                android:layout_marginEnd="4dp"/>
+
+            <View
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:background="#FFD300"
+                android:layout_marginEnd="4dp"/>
+
+            <View
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:background="#333333"/>
+        </LinearLayout>
+
+        <!-- Animated Background Gradient Overlay -->
+        <View
+            android:id="@+id/gradientOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="@drawable/gradient_overlay_top"
+            app:layout_constraintTop_toBottomOf="@id/progressIndicator" />
+
+        <!-- Icon with Animation -->
+        <ImageView
+            android:id="@+id/verificationIcon"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:src="@drawable/heartrate"
+            android:background="@drawable/circle_yellow_bg"
+            android:padding="24dp"
+            app:layout_constraintTop_toBottomOf="@id/progressIndicator"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="60dp"/>
+
+        <!-- Title Text -->
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Verify Your Number"
+            android:textSize="32sp"
             android:textColor="#FFFFFF"
-            android:textColorHint="#BDBDBD"
-            android:textSize="26sp"
-            android:backgroundTint="#FFD300"
+            android:textStyle="bold"
             android:gravity="center"
-            android:maxLength="1"
-            android:inputType="number"
-            android:importantForAccessibility="yes"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:layout_marginEnd="10dp" />
+            app:layout_constraintTop_toBottomOf="@id/verificationIcon"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="24dp"
+            android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp"/>
 
-        <EditText
-            android:id="@+id/codeInput3"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:hint="–"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#BDBDBD"
-            android:textSize="26sp"
-            android:backgroundTint="#FFD300"
+        <!-- Caption Text -->
+        <TextView
+            android:id="@+id/caption"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Enter the 5-digit code we sent to your phone"
+            android:textColor="#AAAAAA"
+            android:textSize="16sp"
             android:gravity="center"
-            android:maxLength="1"
-            android:inputType="number"
-            android:importantForAccessibility="yes"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:layout_marginEnd="10dp" />
+            app:layout_constraintTop_toBottomOf="@id/title"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="12dp"
+            android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp" />
 
-        <EditText
-            android:id="@+id/codeInput4"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:hint="–"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#BDBDBD"
-            android:textSize="26sp"
-            android:backgroundTint="#FFD300"
+        <!-- Phone Number Display -->
+        <TextView
+            android:id="@+id/phoneDisplay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+94 XX XXX XXXX"
+            android:textColor="#FFD300"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/caption"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Code Input Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/codeInputCard"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1A1A1A"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="8dp"
+            app:layout_constraintTop_toBottomOf="@id/phoneDisplay"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="40dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp">
+
+            <LinearLayout
+                android:id="@+id/codeInputContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingTop="32dp"
+                android:paddingBottom="32dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <!-- Input Fields for each digit with enhanced styling -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_margin="4dp"
+                    app:cardBackgroundColor="#2C2C2C"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <EditText
+                        android:id="@+id/codeInput1"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:hint="–"
+                        android:textColor="#FFD300"
+                        android:textColorHint="#555555"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:background="@android:color/transparent"
+                        android:gravity="center"
+                        android:maxLength="1"
+                        android:inputType="number"
+                        android:importantForAccessibility="yes"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"/>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_margin="4dp"
+                    app:cardBackgroundColor="#2C2C2C"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <EditText
+                        android:id="@+id/codeInput2"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:hint="–"
+                        android:textColor="#FFD300"
+                        android:textColorHint="#555555"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:background="@android:color/transparent"
+                        android:gravity="center"
+                        android:maxLength="1"
+                        android:inputType="number"
+                        android:importantForAccessibility="yes"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"/>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_margin="4dp"
+                    app:cardBackgroundColor="#2C2C2C"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <EditText
+                        android:id="@+id/codeInput3"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:hint="–"
+                        android:textColor="#FFD300"
+                        android:textColorHint="#555555"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:background="@android:color/transparent"
+                        android:gravity="center"
+                        android:maxLength="1"
+                        android:inputType="number"
+                        android:importantForAccessibility="yes"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"/>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_margin="4dp"
+                    app:cardBackgroundColor="#2C2C2C"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <EditText
+                        android:id="@+id/codeInput4"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:hint="–"
+                        android:textColor="#FFD300"
+                        android:textColorHint="#555555"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:background="@android:color/transparent"
+                        android:gravity="center"
+                        android:maxLength="1"
+                        android:inputType="number"
+                        android:importantForAccessibility="yes"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"/>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_margin="4dp"
+                    app:cardBackgroundColor="#2C2C2C"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="4dp">
+
+                    <EditText
+                        android:id="@+id/codeInput5"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:hint="–"
+                        android:textColor="#FFD300"
+                        android:textColorHint="#555555"
+                        android:textSize="28sp"
+                        android:textStyle="bold"
+                        android:background="@android:color/transparent"
+                        android:gravity="center"
+                        android:maxLength="1"
+                        android:inputType="number"
+                        android:importantForAccessibility="yes"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"/>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Resend Code Section -->
+        <LinearLayout
+            android:id="@+id/resendSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:maxLength="1"
-            android:inputType="number"
-            android:importantForAccessibility="yes"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:layout_marginEnd="10dp" />
+            app:layout_constraintTop_toBottomOf="@id/codeInputCard"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="24dp">
 
-        <EditText
-            android:id="@+id/codeInput5"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:hint="–"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#BDBDBD"
-            android:textSize="26sp"
-            android:backgroundTint="#FFD300"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Didn't receive the code? "
+                android:textColor="#888888"
+                android:textSize="14sp"/>
+
+            <TextView
+                android:id="@+id/resendButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Resend"
+                android:textColor="#FFD300"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"
+                android:padding="8dp"/>
+        </LinearLayout>
+
+        <!-- Timer Text -->
+        <TextView
+            android:id="@+id/timerText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Resend code in 00:30"
+            android:textColor="#666666"
+            android:textSize="12sp"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/resendSection"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Info Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/infoCard"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#1C1C1C"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:layout_constraintTop_toBottomOf="@id/timerText"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="32dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/heartrate"
+                    app:tint="#FFD300"
+                    android:layout_marginEnd="12dp"/>
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Make sure you enter the code correctly to proceed with registration"
+                    android:textColor="#BBBBBB"
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="2dp"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Verify Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnVerify"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:text="Verify & Continue"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:backgroundTint="#FFD300"
+            app:cornerRadius="32dp"
+            app:icon="@drawable/ic_check"
+            app:iconTint="#000000"
+            app:iconGravity="end"
+            app:iconPadding="12dp"
+            app:layout_constraintTop_toBottomOf="@id/infoCard"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="40dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:elevation="8dp"/>
+
+        <!-- Security Notice -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:maxLength="1"
-            android:inputType="number"
-            android:importantForAccessibility="yes"
-            android:focusable="true"
-            android:focusableInTouchMode="true" />
-    </LinearLayout>
+            app:layout_constraintTop_toBottomOf="@id/btnVerify"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp">
 
-    <!-- Verify Button -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnVerify"
-        android:layout_width="0dp"
-        android:layout_height="60dp"
-        android:text="Verify"
-        android:textColor="#000000"
-        android:textSize="22sp"
-        app:layout_constraintTop_toBottomOf="@id/codeInputContainer"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:backgroundTint="#FFD300"
-        app:cornerRadius="30dp"
-        app:iconPadding="18dp"
-        app:layout_constraintWidth_percent="0.8"
-        android:layout_marginTop="40dp"
-        android:layout_marginBottom="40dp" />
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/heartrate"
+                app:tint="#666666"
+                android:layout_marginEnd="8dp"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Your data is secure and encrypted"
+                android:textColor="#666666"
+                android:textSize="12sp"
+                android:gravity="center"/>
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
