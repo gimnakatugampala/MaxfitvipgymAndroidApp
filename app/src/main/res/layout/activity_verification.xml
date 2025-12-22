@@ -383,7 +383,7 @@
             android:id="@+id/btnVerify"
             android:layout_width="0dp"
             android:layout_height="64dp"
-            android:text="Verify & Continue"
+            android:text="Verify &amp; Continue"
             android:textColor="#000000"
             android:textSize="18sp"
             android:textStyle="bold"
