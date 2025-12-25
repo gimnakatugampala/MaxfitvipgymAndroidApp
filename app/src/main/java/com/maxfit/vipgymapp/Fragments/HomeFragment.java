@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -40,6 +41,7 @@ import com.google.android.material.button.MaterialButton;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -54,6 +56,7 @@ import com.maxfit.vipgymapp.Repository.WorkoutCompletionRepository;
 public class HomeFragment extends Fragment {
 
     private static final String TAG = "HomeFragment";
+    private static final long SCHEDULE_REFRESH_INTERVAL = 30000; // 30 seconds
 
     private LinearLayout metricsContainer;
     private LinearLayout workoutScheduleContainer;
@@ -74,6 +77,10 @@ public class HomeFragment extends Fragment {
     private TextView distanceValueText;
     private TextView caloriesValueText;
     private TextView activeMinutesValueText;
+
+    // ✅ Schedule refresh handler
+    private Handler scheduleRefreshHandler;
+    private Runnable scheduleRefreshRunnable;
 
     // ✅ Health data broadcast receiver
     private BroadcastReceiver healthUpdateReceiver = new BroadcastReceiver() {
@@ -166,7 +173,40 @@ public class HomeFragment extends Fragment {
         // Load workout schedule from database
         loadWorkoutScheduleFromDB();
 
+        // ✅ START: Setup automatic schedule refresh
+        setupScheduleRefresh();
+
         return view;
+    }
+
+    // ✅ NEW: Setup periodic schedule refresh
+    private void setupScheduleRefresh() {
+        scheduleRefreshHandler = new Handler();
+        scheduleRefreshRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isAdded() && getActivity() != null) {
+                    Log.d(TAG, "🔄 Auto-refreshing workout schedule...");
+                    loadWorkoutScheduleFromDB();
+
+                    // Schedule next refresh
+                    scheduleRefreshHandler.postDelayed(this, SCHEDULE_REFRESH_INTERVAL);
+                }
+            }
+        };
+
+        // Start periodic refresh
+        scheduleRefreshHandler.postDelayed(scheduleRefreshRunnable, SCHEDULE_REFRESH_INTERVAL);
+        Log.d(TAG, "✅ Schedule auto-refresh enabled (every 30 seconds)");
+    }
+
+    // ✅ NEW: Manual refresh method (can be called from pull-to-refresh)
+    public void refreshSchedule() {
+        if (isAdded() && getActivity() != null) {
+            Log.d(TAG, "🔄 Manual schedule refresh triggered");
+            loadWorkoutScheduleFromDB();
+            Toast.makeText(getContext(), "Schedule refreshed", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ✅ NEW: Load initial health data
@@ -291,7 +331,7 @@ public class HomeFragment extends Fragment {
 
                 currentMemberScheduleId = (int) memberSchedule.get("id");
                 hasActiveSchedule = true;
-                Log.d(TAG, "Found active schedule ID: " + currentMemberScheduleId);
+                Log.d(TAG, "✅ Found active schedule ID: " + currentMemberScheduleId);
 
                 // Get today's day name
                 String todayDayName = getTodayDayName();
@@ -374,6 +414,9 @@ public class HomeFragment extends Fragment {
 
                             // Update button state based on today's schedule
                             updateWorkoutButtonState();
+
+                            // ✅ Show refresh confirmation
+                            Log.d(TAG, "✅ Schedule UI updated successfully");
                         }
                     });
                 }
@@ -528,6 +571,21 @@ public class HomeFragment extends Fragment {
 
         // ✅ Refresh health data when fragment becomes visible
         loadInitialHealthData();
+
+        // ✅ Resume schedule refresh
+        if (scheduleRefreshHandler != null && scheduleRefreshRunnable != null) {
+            scheduleRefreshHandler.postDelayed(scheduleRefreshRunnable, SCHEDULE_REFRESH_INTERVAL);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+
+        // ✅ Pause schedule refresh when fragment is not visible
+        if (scheduleRefreshHandler != null && scheduleRefreshRunnable != null) {
+            scheduleRefreshHandler.removeCallbacks(scheduleRefreshRunnable);
+        }
     }
 
     private void updateStreakDisplay() {
@@ -698,7 +756,9 @@ public class HomeFragment extends Fragment {
                 .setInterpolator(new OvershootInterpolator())
                 .start();
         view.setRotation(-15f);
-        view.animate().rotation(0f).setDuration(600).start();
+        view.animate().rotation(0f)
+                .setDuration(600)
+                .start();
     }
 
     // ✅ NEW: Add metric with auto-update capability
@@ -796,37 +856,49 @@ public class HomeFragment extends Fragment {
         if (!isAdded()) return;
 
         CardView card = new CardView(getContext());
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
         params.setMargins(0, 10, 0, 10);
         card.setLayoutParams(params);
         card.setCardElevation(8);
         card.setRadius(16);
         card.setCardBackgroundColor(Color.parseColor(isRestDay ? "#2C2C2C" : "#333333"));
+
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.HORIZONTAL);
         layout.setPadding(24, 24, 24, 24);
         layout.setGravity(Gravity.CENTER_VERTICAL);
+
         ImageView icon = new ImageView(getContext());
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(80, 80);
         icon.setLayoutParams(iconParams);
         icon.setImageResource(isRestDay ? R.drawable.resting : R.drawable.workout);
         icon.setColorFilter(Color.YELLOW);
         layout.addView(icon);
+
         LinearLayout textLayout = new LinearLayout(getContext());
         textLayout.setOrientation(LinearLayout.VERTICAL);
         textLayout.setPadding(20, 0, 0, 0);
-        textLayout.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        textLayout.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
         TextView dayText = new TextView(getContext());
         dayText.setText(day);
         dayText.setTextColor(Color.WHITE);
         dayText.setTextSize(20);
         dayText.setTypeface(Typeface.DEFAULT_BOLD);
         textLayout.addView(dayText);
+
         TextView summaryText = new TextView(getContext());
         summaryText.setText(summary);
         summaryText.setTextColor(Color.LTGRAY);
         summaryText.setTextSize(17);
         textLayout.addView(summaryText);
+
         if (total != null) {
             TextView totalText = new TextView(getContext());
             totalText.setText(total);
@@ -834,6 +906,7 @@ public class HomeFragment extends Fragment {
             totalText.setTextSize(16);
             textLayout.addView(totalText);
         }
+
         layout.addView(textLayout);
         card.addView(layout);
 
@@ -850,14 +923,18 @@ public class HomeFragment extends Fragment {
         if (!isAdded()) return;
 
         if (isRestDay) {
-            Toast.makeText(getContext(), day + " is a rest day. Take it easy and recharge!", Toast.LENGTH_LONG).show();
+            Toast.makeText(getContext(),
+                    day + " is a rest day. Take it easy and recharge!",
+                    Toast.LENGTH_LONG).show();
             return;
         }
 
         List<Map<String, Object>> dayWorkouts = weekWorkoutsMap.get(day);
 
         if (dayWorkouts == null || dayWorkouts.isEmpty()) {
-            Toast.makeText(getContext(), "No workout details available for " + day, Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(),
+                    "No workout details available for " + day,
+                    Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -958,8 +1035,10 @@ public class HomeFragment extends Fragment {
 
         final int finalTotalDuration = totalDuration;
 
-        String message = String.format("Today's workout (%s):\n\n%d exercises\nTotal duration: ~%d minutes\n\nAre you ready to begin?",
-                todayDay, workoutCount, finalTotalDuration);
+        String message = String.format(
+                "Today's workout (%s):\n\n%d exercises\nTotal duration: ~%d minutes\n\nAre you ready to begin?",
+                todayDay, workoutCount, finalTotalDuration
+        );
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("Start Workout");
@@ -989,6 +1068,12 @@ public class HomeFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
+
+        // ✅ Stop schedule refresh
+        if (scheduleRefreshHandler != null && scheduleRefreshRunnable != null) {
+            scheduleRefreshHandler.removeCallbacks(scheduleRefreshRunnable);
+            Log.d(TAG, "✅ Schedule refresh stopped");
+        }
 
         // ✅ Unregister health update receiver
         if (getContext() != null) {
