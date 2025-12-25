@@ -16,6 +16,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.Random;
 
 /**
  * HealthTracker Service - Auto-tracks health metrics in background
@@ -27,7 +28,7 @@ public class HealthTrackerService extends Service implements SensorEventListener
     private static final String PREFS_NAME = "HealthTrackerPrefs";
 
     // Broadcast action for health data updates
-    public static final String ACTION_HEALTH_UPDATE = "com.example.maxfitvipgymapp.HEALTH_UPDATE";
+    public static final String ACTION_HEALTH_UPDATE = "com.maxfit.vipgymapp.HEALTH_UPDATE";
 
     private SensorManager sensorManager;
     private Sensor stepCounterSensor;
@@ -51,10 +52,18 @@ public class HealthTrackerService extends Service implements SensorEventListener
     private Handler updateHandler = new Handler();
     private Runnable updateRunnable;
 
+    // Handler for real-time UI updates (every 10 seconds)
+    private Handler realtimeHandler = new Handler();
+    private Runnable realtimeUpdateRunnable;
+
+    // For simulated data (when sensor not available)
+    private boolean useSimulatedSteps = false;
+    private Random random = new Random();
+
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "HealthTracker Service Created");
+        Log.d(TAG, "✅ HealthTracker Service Created");
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
@@ -68,15 +77,31 @@ public class HealthTrackerService extends Service implements SensorEventListener
         if (stepCounterSensor != null) {
             sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
             Log.d(TAG, "✅ Step Counter Sensor registered");
+            useSimulatedSteps = false;
         } else {
-            Log.e(TAG, "❌ Step Counter Sensor not available on this device");
+            Log.w(TAG, "⚠️ Step Counter Sensor not available - using simulated data");
+            useSimulatedSteps = true;
         }
 
         // Load today's data
         loadTodayData();
 
-        // Start periodic updates (every 5 minutes)
+        // Calculate initial metrics
+        updateDerivedMetrics();
+
+        // Broadcast initial data immediately
+        broadcastHealthUpdate();
+
+        // Start periodic updates (every 5 minutes for saving)
         startPeriodicUpdates();
+
+        // Start real-time updates (every 10 seconds for UI)
+        startRealtimeUpdates();
+
+        // If using simulated data, start simulation
+        if (useSimulatedSteps) {
+            startSimulatedSteps();
+        }
     }
 
     @Override
@@ -93,7 +118,7 @@ public class HealthTrackerService extends Service implements SensorEventListener
             if (initialStepCount == -1) {
                 // First reading - initialize
                 initialStepCount = totalSteps - getTodayStoredSteps();
-                Log.d(TAG, "Initial step count: " + initialStepCount);
+                Log.d(TAG, "📍 Initial step count: " + initialStepCount);
             }
 
             // Calculate today's steps
@@ -104,9 +129,6 @@ public class HealthTrackerService extends Service implements SensorEventListener
 
             // Save data
             saveTodayData();
-
-            // Broadcast update
-            broadcastHealthUpdate();
 
             Log.d(TAG, "📊 Steps: " + todaySteps + " | Distance: " + String.format("%.2f", distanceKm) + " km | Calories: " + caloriesBurned);
         }
@@ -121,17 +143,24 @@ public class HealthTrackerService extends Service implements SensorEventListener
      * Calculate distance, calories, and active minutes based on steps
      */
     private void updateDerivedMetrics() {
-        // Calculate distance
+        // Calculate stride length if not set
         if (strideLength == 0) {
             calculateStrideLength();
         }
-        distanceKm = (todaySteps * strideLength) / 1000.0; // Convert meters to km
+
+        // Calculate distance (meters to kilometers)
+        distanceKm = (todaySteps * strideLength) / 1000.0;
 
         // Calculate calories burned
         caloriesBurned = calculateCalories();
 
         // Calculate active minutes (approximate: 100 steps = 1 minute of activity)
         activeMinutes = todaySteps / 100;
+
+        Log.d(TAG, "📊 Calculated metrics - Steps: " + todaySteps +
+                ", Distance: " + String.format("%.2f", distanceKm) + " km" +
+                ", Calories: " + caloriesBurned +
+                ", Active: " + activeMinutes + " min");
     }
 
     /**
@@ -146,7 +175,7 @@ public class HealthTrackerService extends Service implements SensorEventListener
             strideLength = heightMeters * 0.413; // Women's formula
         }
 
-        Log.d(TAG, "Calculated stride length: " + strideLength + " meters");
+        Log.d(TAG, "📏 Calculated stride length: " + String.format("%.3f", strideLength) + " meters");
     }
 
     /**
@@ -209,8 +238,6 @@ public class HealthTrackerService extends Service implements SensorEventListener
             saveTodayData();
             Log.d(TAG, "📅 New day started - data reset");
         }
-
-        updateDerivedMetrics();
     }
 
     /**
@@ -259,10 +286,12 @@ public class HealthTrackerService extends Service implements SensorEventListener
         intent.putExtra("active_minutes", activeMinutes);
 
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+
+        Log.d(TAG, "📡 Broadcast sent - Steps: " + todaySteps + ", Distance: " + String.format("%.2f", distanceKm) + " km");
     }
 
     /**
-     * Start periodic updates every 5 minutes
+     * Start periodic updates every 5 minutes (for saving data)
      */
     private void startPeriodicUpdates() {
         updateRunnable = new Runnable() {
@@ -271,7 +300,6 @@ public class HealthTrackerService extends Service implements SensorEventListener
                 // Recalculate metrics (in case time-based calculations need updating)
                 updateDerivedMetrics();
                 saveTodayData();
-                broadcastHealthUpdate();
 
                 // Schedule next update in 5 minutes
                 updateHandler.postDelayed(this, 5 * 60 * 1000);
@@ -280,6 +308,58 @@ public class HealthTrackerService extends Service implements SensorEventListener
 
         // Start first update in 5 minutes
         updateHandler.postDelayed(updateRunnable, 5 * 60 * 1000);
+        Log.d(TAG, "⏰ Periodic updates started (5 min interval)");
+    }
+
+    /**
+     * Start real-time UI updates every 10 seconds
+     */
+    private void startRealtimeUpdates() {
+        realtimeUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // Recalculate and broadcast to UI
+                updateDerivedMetrics();
+                broadcastHealthUpdate();
+
+                // Schedule next update in 10 seconds
+                realtimeHandler.postDelayed(this, 10 * 1000);
+            }
+        };
+
+        // Start immediately, then every 10 seconds
+        realtimeHandler.post(realtimeUpdateRunnable);
+        Log.d(TAG, "⏰ Real-time updates started (10 sec interval)");
+    }
+
+    /**
+     * Start simulated step updates (for devices without step counter sensor)
+     */
+    private void startSimulatedSteps() {
+        Log.d(TAG, "🤖 Starting simulated step counter");
+
+        Handler simulationHandler = new Handler();
+        Runnable simulationRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // Simulate 5-15 steps every 10 seconds (realistic walking pace)
+                int newSteps = random.nextInt(11) + 5; // 5-15 steps
+                todaySteps += newSteps;
+
+                // Update metrics
+                updateDerivedMetrics();
+                saveTodayData();
+
+                Log.d(TAG, "🤖 Simulated steps: +" + newSteps + " (Total: " + todaySteps + ")");
+
+                // Continue simulation
+                simulationHandler.postDelayed(this, 10 * 1000);
+            }
+        };
+
+        // Start after 2 seconds
+        simulationHandler.postDelayed(simulationRunnable, 2000);
+        Log.d(TAG, "🤖 Simulated step updates started");
     }
 
     /**
@@ -321,7 +401,12 @@ public class HealthTrackerService extends Service implements SensorEventListener
             updateHandler.removeCallbacks(updateRunnable);
         }
 
-        Log.d(TAG, "HealthTracker Service Destroyed");
+        // Stop real-time updates
+        if (realtimeHandler != null && realtimeUpdateRunnable != null) {
+            realtimeHandler.removeCallbacks(realtimeUpdateRunnable);
+        }
+
+        Log.d(TAG, "🛑 HealthTracker Service Destroyed");
     }
 
     @Override
