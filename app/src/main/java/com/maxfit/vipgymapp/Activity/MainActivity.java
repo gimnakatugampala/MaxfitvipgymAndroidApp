@@ -17,6 +17,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+// ✅ NEW IMPORTS FOR WORKMANAGER
+import androidx.work.Constraints;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import com.maxfit.vipgymapp.Model.Member;
 import com.maxfit.vipgymapp.R;
@@ -26,11 +32,13 @@ import com.maxfit.vipgymapp.Fragments.ProfileFragment;
 import com.maxfit.vipgymapp.Repository.MemberRepository;
 import com.maxfit.vipgymapp.Utils.SessionManager;
 import com.maxfit.vipgymapp.Widget.WorkoutWidgetProvider;
+import com.maxfit.vipgymapp.Worker.DailySyncWorker; // Import your worker
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -56,8 +64,6 @@ public class MainActivity extends AppCompatActivity {
             redirectToLogin();
             return;
         }
-
-
 
         // ✅ Check if user is approved (is_active = true)
         checkUserApprovalStatus();
@@ -95,6 +101,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Ask to pin widget on first launch
         askToPinWidget();
+
+        // ✅ SCHEDULE BACKGROUND SYNC
+        scheduleDailySync();
     }
 
     // ✅ NEW METHOD: Check if user account is approved
@@ -133,8 +142,27 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // ✅ NEW METHOD: Schedule Background Sync
+    private void scheduleDailySync() {
+        // Defines conditions: Must have internet
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
 
+        // Run periodically (e.g., every 12 hours) to check if "yesterday" needs uploading
+        PeriodicWorkRequest syncRequest =
+                new PeriodicWorkRequest.Builder(DailySyncWorker.class, 12, TimeUnit.HOURS)
+                        .setConstraints(constraints)
+                        .build();
 
+        // Enqueue unique work (keeps running even if app restarts)
+        // 'KEEP' means if it's already scheduled, don't replace/restart it
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "DailyHealthSync",
+                ExistingPeriodicWorkPolicy.KEEP,
+                syncRequest
+        );
+    }
 
     private void redirectToLogin() {
         Intent intent = new Intent(this, GetStartedActivity.class);
