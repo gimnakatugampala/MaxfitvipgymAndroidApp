@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-
 import com.maxfit.vipgymapp.Repository.WorkoutCompletionRepository;
 
 public class HomeFragment extends Fragment {
@@ -85,6 +84,8 @@ public class HomeFragment extends Fragment {
             currentCalories = intent.getIntExtra("calories", 0);
             currentActiveMinutes = intent.getIntExtra("active_minutes", 0);
 
+            Log.d(TAG, "📊 Health data received - Steps: " + currentSteps + ", Distance: " + currentDistance + " km");
+
             updateHealthMetrics();
         }
     };
@@ -97,7 +98,6 @@ public class HomeFragment extends Fragment {
     private List<Map<String, Object>> todayWorkouts = null;
 
     private WorkoutCompletionRepository workoutCompletionRepository;
-
 
     // Day name mapping
     private static final String[] DAYS = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
@@ -160,10 +160,74 @@ public class HomeFragment extends Fragment {
                 new IntentFilter(HealthTrackerService.ACTION_HEALTH_UPDATE)
         );
 
+        // ✅ Load initial health data from service
+        loadInitialHealthData();
+
         // Load workout schedule from database
         loadWorkoutScheduleFromDB();
 
         return view;
+    }
+
+    // ✅ NEW: Load initial health data
+    private void loadInitialHealthData() {
+        if (getContext() != null) {
+            SharedPreferences prefs = getContext().getSharedPreferences("HealthTrackerPrefs", Context.MODE_PRIVATE);
+            String today = getTodayDate();
+            String lastDate = prefs.getString("last_date", "");
+
+            if (today.equals(lastDate)) {
+                currentSteps = prefs.getInt("today_steps", 0);
+                Log.d(TAG, "📱 Loaded initial steps from storage: " + currentSteps);
+
+                // Calculate derived metrics manually
+                updateDerivedMetrics();
+                updateHealthMetrics();
+            } else {
+                Log.d(TAG, "📱 No data for today yet, waiting for sensor updates...");
+            }
+        }
+    }
+
+    // ✅ NEW: Calculate derived metrics (same logic as in service)
+    private void updateDerivedMetrics() {
+        // Calculate stride length
+        int userHeightCm = 170; // Default, can load from UserProfile if needed
+        String userGender = "M";
+
+        SharedPreferences userPrefs = getContext().getSharedPreferences("UserProfile", Context.MODE_PRIVATE);
+        userHeightCm = userPrefs.getInt("height_cm", 170);
+        userGender = userPrefs.getString("gender", "M");
+
+        double heightMeters = userHeightCm / 100.0;
+        double strideLength;
+        if (userGender.equals("M")) {
+            strideLength = heightMeters * 0.415;
+        } else {
+            strideLength = heightMeters * 0.413;
+        }
+
+        // Calculate distance
+        currentDistance = (currentSteps * strideLength) / 1000.0;
+
+        // Calculate calories (simplified)
+        currentCalories = (int) (currentSteps * 0.04);
+
+        // Calculate active minutes
+        currentActiveMinutes = currentSteps / 100;
+
+        Log.d(TAG, "📊 Calculated metrics - Steps: " + currentSteps +
+                ", Distance: " + String.format("%.2f", currentDistance) + " km" +
+                ", Calories: " + currentCalories +
+                ", Active: " + currentActiveMinutes + " min");
+    }
+
+    private String getTodayDate() {
+        Calendar cal = Calendar.getInstance();
+        return String.format(Locale.US, "%04d-%02d-%02d",
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH) + 1,
+                cal.get(Calendar.DAY_OF_MONTH));
     }
 
     private String getTodayDayName() {
@@ -461,6 +525,9 @@ public class HomeFragment extends Fragment {
         updateStreakDisplay();
         setWelcomeMessage();
         loadWorkoutScheduleFromDB();
+
+        // ✅ Refresh health data when fragment becomes visible
+        loadInitialHealthData();
     }
 
     private void updateStreakDisplay() {
@@ -572,6 +639,7 @@ public class HomeFragment extends Fragment {
                     Calendar endCal = Calendar.getInstance();
                     Calendar iteratorCal = (Calendar) startCal.clone();
                     SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                    SimpleDateFormat monthFormat = new SimpleDateFormat("MMM", Locale.getDefault());
 
                     while (iteratorCal.before(endCal) ||
                             (iteratorCal.get(Calendar.MONTH) == endCal.get(Calendar.MONTH) &&
@@ -617,7 +685,6 @@ public class HomeFragment extends Fragment {
         });
     }
 
-
     private void animateStreakIcon(View view) {
         if (view == null) return;
         view.setScaleX(0f);
@@ -632,49 +699,6 @@ public class HomeFragment extends Fragment {
                 .start();
         view.setRotation(-15f);
         view.animate().rotation(0f).setDuration(600).start();
-    }
-
-    private void addMetric(String title, String value, String unit, int iconRes) {
-        if (!isAdded()) return;
-
-        CardView card = new CardView(getContext());
-        int cardSizeInDp = 160;
-        int cardSizeInPx = (int) (cardSizeInDp * getResources().getDisplayMetrics().density);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(cardSizeInPx, cardSizeInPx);
-        cardParams.setMargins(20, 0, 20, 0);
-        card.setLayoutParams(cardParams);
-        card.setCardBackgroundColor(Color.parseColor("#212121"));
-        card.setRadius(20);
-        card.setCardElevation(10);
-        LinearLayout layout = new LinearLayout(getContext());
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(20, 20, 20, 20);
-        layout.setGravity(Gravity.CENTER);
-        ImageView icon = new ImageView(getContext());
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(80, 80);
-        icon.setLayoutParams(iconParams);
-        icon.setImageResource(iconRes);
-        icon.setColorFilter(Color.YELLOW);
-        layout.addView(icon);
-        TextView titleText = new TextView(getContext());
-        titleText.setText(title);
-        titleText.setTextColor(Color.WHITE);
-        titleText.setTextSize(18);
-        titleText.setTypeface(Typeface.DEFAULT_BOLD);
-        titleText.setGravity(Gravity.CENTER);
-        layout.addView(titleText);
-        TextView valueText = new TextView(getContext());
-        valueText.setText(value + " " + unit);
-        valueText.setTextColor(Color.WHITE);
-        valueText.setTextSize(22);
-        valueText.setTypeface(null, Typeface.BOLD);
-        valueText.setGravity(Gravity.CENTER);
-        layout.addView(valueText);
-        card.addView(layout);
-
-        if (metricsContainer != null) {
-            metricsContainer.addView(card);
-        }
     }
 
     // ✅ NEW: Add metric with auto-update capability
@@ -754,6 +778,8 @@ public class HomeFragment extends Fragment {
             if (activeMinutesValueText != null) {
                 activeMinutesValueText.setText(String.format(Locale.US, "%d min", currentActiveMinutes));
             }
+
+            Log.d(TAG, "✅ Health metrics UI updated");
         });
     }
 
