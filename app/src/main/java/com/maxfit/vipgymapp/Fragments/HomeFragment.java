@@ -11,6 +11,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -82,18 +83,26 @@ public class HomeFragment extends Fragment {
     private Handler scheduleRefreshHandler;
     private Runnable scheduleRefreshRunnable;
 
-    // ✅ Health data broadcast receiver
-    private BroadcastReceiver healthUpdateReceiver = new BroadcastReceiver() {
+    // ✅ FIXED: Health data broadcast receiver (Standardized Name)
+    private final BroadcastReceiver healthDataReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            currentSteps = intent.getIntExtra("steps", 0);
-            currentDistance = intent.getDoubleExtra("distance_km", 0.0);
-            currentCalories = intent.getIntExtra("calories", 0);
-            currentActiveMinutes = intent.getIntExtra("active_minutes", 0);
+            if (HealthTrackerService.ACTION_HEALTH_UPDATE.equals(intent.getAction())) {
+                // Get data from the broadcast
+                int steps = intent.getIntExtra("steps", 0);
+                double distance = intent.getDoubleExtra("distance_km", 0.0);
+                int calories = intent.getIntExtra("calories", 0);
+                int activeMinutes = intent.getIntExtra("active_minutes", 0);
 
-            Log.d(TAG, "📊 Health data received - Steps: " + currentSteps + ", Distance: " + currentDistance + " km");
+                // Update local variables
+                currentSteps = steps;
+                currentDistance = distance;
+                currentCalories = calories;
+                currentActiveMinutes = activeMinutes;
 
-            updateHealthMetrics();
+                // Update the UI immediately
+                updateHealthMetrics();
+            }
         }
     };
 
@@ -161,13 +170,7 @@ public class HomeFragment extends Fragment {
         // ✅ Start health tracker service
         startHealthTrackerService();
 
-        // ✅ Register health update receiver
-        LocalBroadcastManager.getInstance(getContext()).registerReceiver(
-                healthUpdateReceiver,
-                new IntentFilter(HealthTrackerService.ACTION_HEALTH_UPDATE)
-        );
-
-        // ✅ Load initial health data from service
+        // ✅ Load initial health data from storage
         loadInitialHealthData();
 
         // Load workout schedule from database
@@ -181,7 +184,7 @@ public class HomeFragment extends Fragment {
 
     // ✅ NEW: Setup periodic schedule refresh
     private void setupScheduleRefresh() {
-        scheduleRefreshHandler = new Handler();
+        scheduleRefreshHandler = new Handler(Looper.getMainLooper());
         scheduleRefreshRunnable = new Runnable() {
             @Override
             public void run() {
@@ -200,7 +203,7 @@ public class HomeFragment extends Fragment {
         Log.d(TAG, "✅ Schedule auto-refresh enabled (every 30 seconds)");
     }
 
-    // ✅ NEW: Manual refresh method (can be called from pull-to-refresh)
+    // ✅ NEW: Manual refresh method
     public void refreshSchedule() {
         if (isAdded() && getActivity() != null) {
             Log.d(TAG, "🔄 Manual schedule refresh triggered");
@@ -220,7 +223,7 @@ public class HomeFragment extends Fragment {
                 currentSteps = prefs.getInt("today_steps", 0);
                 Log.d(TAG, "📱 Loaded initial steps from storage: " + currentSteps);
 
-                // Calculate derived metrics manually
+                // Calculate derived metrics manually for initial display
                 updateDerivedMetrics();
                 updateHealthMetrics();
             } else {
@@ -231,8 +234,10 @@ public class HomeFragment extends Fragment {
 
     // ✅ NEW: Calculate derived metrics (same logic as in service)
     private void updateDerivedMetrics() {
+        if (getContext() == null) return;
+
         // Calculate stride length
-        int userHeightCm = 170; // Default, can load from UserProfile if needed
+        int userHeightCm = 170; // Default
         String userGender = "M";
 
         SharedPreferences userPrefs = getContext().getSharedPreferences("UserProfile", Context.MODE_PRIVATE);
@@ -250,8 +255,8 @@ public class HomeFragment extends Fragment {
         // Calculate distance
         currentDistance = (currentSteps * strideLength) / 1000.0;
 
-        // Calculate calories (simplified)
-        currentCalories = (int) (currentSteps * 0.04);
+        // Calculate calories (simplified for UI, service has full BMR logic)
+        currentCalories = 1500 + (int) (currentSteps * 0.04);
 
         // Calculate active minutes
         currentActiveMinutes = currentSteps / 100;
@@ -282,7 +287,6 @@ public class HomeFragment extends Fragment {
         return DAY_ABBR[dayOfWeek - 1];
     }
 
-    // ✅ FIXED: Load workout schedule with proper null checks
     private void loadWorkoutScheduleFromDB() {
         int memberId = sessionManager.getMemberId();
 
@@ -569,7 +573,15 @@ public class HomeFragment extends Fragment {
         setWelcomeMessage();
         loadWorkoutScheduleFromDB();
 
-        // ✅ Refresh health data when fragment becomes visible
+        // ✅ Register health update receiver (CORRECTED & MOVED HERE)
+        if (getContext() != null) {
+            LocalBroadcastManager.getInstance(getContext()).registerReceiver(
+                    healthDataReceiver,
+                    new IntentFilter(HealthTrackerService.ACTION_HEALTH_UPDATE)
+            );
+        }
+
+        // ✅ Refresh health data from storage immediately
         loadInitialHealthData();
 
         // ✅ Resume schedule refresh
@@ -586,6 +598,11 @@ public class HomeFragment extends Fragment {
         if (scheduleRefreshHandler != null && scheduleRefreshRunnable != null) {
             scheduleRefreshHandler.removeCallbacks(scheduleRefreshRunnable);
         }
+
+        // ✅ Unregister to save battery and avoid leaks (CORRECTED)
+        if (getContext() != null) {
+            LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(healthDataReceiver);
+        }
     }
 
     private void updateStreakDisplay() {
@@ -593,11 +610,9 @@ public class HomeFragment extends Fragment {
         if (view != null && getActivity() != null && isAdded()) {
             int memberId = sessionManager.getMemberId();
 
-            // ✅ Fetch streak from database instead of SharedPreferences
             executorService.execute(() -> {
                 int currentStreak = workoutCompletionRepository.calculateCurrentStreak(memberId);
 
-                // ✅ FIX: Use getActivity().runOnUiThread() instead of just runOnUiThread()
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         if (!isAdded()) return;
@@ -644,11 +659,9 @@ public class HomeFragment extends Fragment {
 
         int memberId = sessionManager.getMemberId();
 
-        // ✅ Fetch streak from database
         executorService.execute(() -> {
             int currentStreak = workoutCompletionRepository.calculateCurrentStreak(memberId);
 
-            // ✅ FIX: Use getActivity().runOnUiThread() instead of just runOnUiThread()
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (!isAdded()) return;
@@ -678,16 +691,13 @@ public class HomeFragment extends Fragment {
         List<MonthModel> monthList = new ArrayList<>();
         int memberId = sessionManager.getMemberId();
 
-        // ✅ Fetch completion dates from database
         executorService.execute(() -> {
             List<String> completedDates = workoutCompletionRepository.getCompletionDates(memberId, 6);
 
-            // ✅ FIX: Use getActivity().runOnUiThread() instead of just runOnUiThread()
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (!isAdded()) return;
 
-                    // Convert list to set for faster lookups
                     Set<String> completedSet = new HashSet<>(completedDates);
 
                     Calendar startCal = Calendar.getInstance();
@@ -710,12 +720,10 @@ public class HomeFragment extends Fragment {
                         iteratorCal.set(Calendar.DAY_OF_MONTH, 1);
                         int startDayOfWeek = iteratorCal.get(Calendar.DAY_OF_WEEK);
 
-                        // Add empty cells for days before month starts
                         for (int i = 1; i < startDayOfWeek; i++) {
                             daysInMonth.add(new DateModel("", "", false, true));
                         }
 
-                        // Add actual days
                         for (int day = 1; day <= maxDays; day++) {
                             Calendar currentDay = (Calendar) iteratorCal.clone();
                             currentDay.set(Calendar.DAY_OF_MONTH, day);
@@ -761,7 +769,6 @@ public class HomeFragment extends Fragment {
                 .start();
     }
 
-    // ✅ NEW: Add metric with auto-update capability
     private void addMetricWithUpdate(String title, String value, String unit, int iconRes) {
         if (!isAdded()) return;
 
@@ -823,7 +830,7 @@ public class HomeFragment extends Fragment {
 
     // ✅ Update health metrics in UI
     private void updateHealthMetrics() {
-        if (!isAdded()) return;
+        if (!isAdded() || getActivity() == null) return;
 
         getActivity().runOnUiThread(() -> {
             if (stepsValueText != null) {
@@ -847,7 +854,11 @@ public class HomeFragment extends Fragment {
     private void startHealthTrackerService() {
         if (getContext() != null) {
             Intent serviceIntent = new Intent(getContext(), HealthTrackerService.class);
-            getContext().startService(serviceIntent);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                getContext().startForegroundService(serviceIntent);
+            } else {
+                getContext().startService(serviceIntent);
+            }
             Log.d(TAG, "✅ HealthTracker Service started");
         }
     }
@@ -1073,16 +1084,6 @@ public class HomeFragment extends Fragment {
         if (scheduleRefreshHandler != null && scheduleRefreshRunnable != null) {
             scheduleRefreshHandler.removeCallbacks(scheduleRefreshRunnable);
             Log.d(TAG, "✅ Schedule refresh stopped");
-        }
-
-        // ✅ Unregister health update receiver
-        if (getContext() != null) {
-            try {
-                LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(healthUpdateReceiver);
-                Log.d(TAG, "Health update receiver unregistered");
-            } catch (Exception e) {
-                Log.e(TAG, "Error unregistering receiver: " + e.getMessage());
-            }
         }
 
         if (executorService != null && !executorService.isShutdown()) {

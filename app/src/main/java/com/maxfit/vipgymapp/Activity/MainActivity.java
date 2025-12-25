@@ -30,6 +30,7 @@ import com.maxfit.vipgymapp.Fragments.HomeFragment;
 import com.maxfit.vipgymapp.Fragments.InsightsFragment;
 import com.maxfit.vipgymapp.Fragments.ProfileFragment;
 import com.maxfit.vipgymapp.Repository.MemberRepository;
+import com.maxfit.vipgymapp.Service.HealthTrackerService;
 import com.maxfit.vipgymapp.Utils.SessionManager;
 import com.maxfit.vipgymapp.Widget.WorkoutWidgetProvider;
 import com.maxfit.vipgymapp.Worker.DailySyncWorker; // Import your worker
@@ -76,6 +77,21 @@ public class MainActivity extends AppCompatActivity {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
             }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACTIVITY_RECOGNITION}, 100);
+            }
+        }
+
+        Intent serviceIntent = new Intent(this, HealthTrackerService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
         }
 
         bottomNavigationView = findViewById(R.id.bottomNavigationView);
