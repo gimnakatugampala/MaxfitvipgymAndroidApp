@@ -71,10 +71,11 @@ public class WorkoutRepository {
         return null;
     }
 
-    // Get member's current workout schedule
+    // ✅ UPDATED: Get member's LATEST active workout schedule
     public Map<String, Object> getMemberWorkoutSchedule(int memberId) {
         try {
-            String filter = "member_id=eq." + memberId + "&is_active=eq.true";
+            // ✅ Order by start_date descending to get the most recent schedule
+            String filter = "member_id=eq." + memberId + "&is_active=eq.true&order=start_date.desc&limit=1";
             JSONArray result = client.select(SupabaseConfig.TABLE_MEMBER_WORKOUT_SCHEDULE, filter);
 
             if (result.length() > 0) {
@@ -84,10 +85,18 @@ public class WorkoutRepository {
                 schedule.put("schedule_id", obj.optInt("schedule_id"));
                 schedule.put("start_date", obj.optString("start_date"));
                 schedule.put("end_date", obj.optString("end_date"));
+
+                Log.d(TAG, "✅ Found latest active schedule:");
+                Log.d(TAG, "   Schedule ID: " + schedule.get("id"));
+                Log.d(TAG, "   Start Date: " + schedule.get("start_date"));
+
                 return schedule;
+            } else {
+                Log.d(TAG, "⚠️ No active schedule found for member " + memberId);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error getting member workout schedule: " + e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }
@@ -126,8 +135,6 @@ public class WorkoutRepository {
     }
 
     // Get member's workout schedule details
-    // Replace the getMemberWorkoutScheduleDetails() method in WorkoutRepository.java
-
     public List<Map<String, Object>> getMemberWorkoutScheduleDetails(int memberScheduleId, String day) {
         List<Map<String, Object>> workouts = new ArrayList<>();
         try {
@@ -144,11 +151,11 @@ public class WorkoutRepository {
                 workout.put("set_no", obj.optString("set_no"));
                 workout.put("rep_no", obj.optString("rep_no"));
 
-                // ✅ Parse duration_minutes (stored in MINUTES in DB)
+                // Parse duration_minutes (stored in MINUTES in DB)
                 String durationStr = obj.optString("duration_minutes");
                 workout.put("duration_minutes", durationStr);
 
-                // ✅ NEW: Get rest_seconds from database (default 60)
+                // Get rest_seconds from database (default 60)
                 int restSeconds = obj.optInt("rest_seconds", 60);
                 workout.put("rest_seconds", restSeconds);
 
