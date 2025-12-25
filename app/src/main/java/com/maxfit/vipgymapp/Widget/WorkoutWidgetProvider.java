@@ -16,6 +16,7 @@ import com.maxfit.vipgymapp.Utils.SessionManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -75,14 +76,19 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
         String currentDay = new SimpleDateFormat("EEEE", Locale.getDefault()).format(Calendar.getInstance().getTime());
         boolean isRestDay = currentDay.equals("Wednesday") || currentDay.equals("Sunday");
 
+        // 1. Set Streak
         views.setTextViewText(R.id.widgetStreakNumber, String.valueOf(currentStreak));
+
+        // 2. Set Date (New ID in your XML)
+        String dateText = new SimpleDateFormat("EEE, MMM dd", Locale.getDefault()).format(new Date());
+        views.setTextViewText(R.id.widgetDate, dateText);
 
         if (isRestDay) {
             views.setTextViewText(R.id.widgetTitle, "Rest Day 😴");
             views.setTextViewText(R.id.widgetMessage, "Relax today!");
-            views.setTextViewText(R.id.widgetButton, "VIEW");
             views.setImageViewResource(R.id.widgetIcon, R.drawable.resting);
 
+            // Button Click -> Main Activity (View status)
             Intent mainIntent = new Intent(context, MainActivity.class);
             mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent mainPendingIntent = PendingIntent.getActivity(context, 0, mainIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -91,9 +97,9 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
         } else if (workoutCompletedToday) {
             views.setTextViewText(R.id.widgetTitle, "Great Job! 🎉");
             views.setTextViewText(R.id.widgetMessage, "Workout completed!");
-            views.setTextViewText(R.id.widgetButton, "VIEW");
             views.setImageViewResource(R.id.widgetIcon, R.drawable.workout);
 
+            // Button Click -> Main Activity (View status)
             Intent mainIntent = new Intent(context, MainActivity.class);
             mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent mainPendingIntent = PendingIntent.getActivity(context, 0, mainIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -102,9 +108,9 @@ public class WorkoutWidgetProvider extends AppWidgetProvider {
         } else {
             views.setTextViewText(R.id.widgetTitle, "Let's Workout! 💪");
             views.setTextViewText(R.id.widgetMessage, getShortMessage(currentStreak));
-            views.setTextViewText(R.id.widgetButton, "START");
             views.setImageViewResource(R.id.widgetIcon, R.drawable.running);
 
+            // Button Click -> Start Workout Activity
             Intent workoutIntent = new Intent(context, WorkoutActivity.class);
             workoutIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             PendingIntent workoutPendingIntent = PendingIntent.getActivity(context, 0, workoutIntent, PendingIntent.FLAG_IMMUTABLE);

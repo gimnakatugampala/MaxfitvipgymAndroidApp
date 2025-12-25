@@ -113,13 +113,17 @@ public class WorkoutCompletionRepository {
             String latestDate = result.getJSONObject(0).getString("completion_date");
 
             if (!latestDate.equals(todayStr) && !latestDate.equals(yesterdayStr)) {
-                // Streak broken
-                return 0;
+                return 0; // Streak broken
             }
 
-            // Count consecutive days
             int streak = 0;
-            Calendar checkDate = (Calendar) today.clone();
+
+            // FIX: Start checking from the DATE OF THE LATEST WORKOUT
+            // If we worked out today, check from today. If yesterday, check from yesterday.
+            Calendar checkDate = Calendar.getInstance();
+            if (latestDate.equals(yesterdayStr)) {
+                checkDate.add(Calendar.DAY_OF_MONTH, -1);
+            }
 
             for (int i = 0; i < result.length(); i++) {
                 String completionDate = result.getJSONObject(i).getString("completion_date");
@@ -127,6 +131,7 @@ public class WorkoutCompletionRepository {
 
                 if (completionDate.equals(expectedDate)) {
                     streak++;
+                    // Move checkDate back by one day for the next iteration
                     checkDate.add(Calendar.DAY_OF_MONTH, -1);
                 } else {
                     // Gap found, streak ends
