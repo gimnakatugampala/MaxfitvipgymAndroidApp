@@ -8,9 +8,12 @@ import com.maxfit.vipgymapp.Network.SupabaseClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class WorkoutRepository {
@@ -71,29 +74,69 @@ public class WorkoutRepository {
         return null;
     }
 
-    // ✅ UPDATED: Get member's LATEST active workout schedule
+    // ✅ FIXED: Get member's LATEST active workout schedule with better date handling
     public Map<String, Object> getMemberWorkoutSchedule(int memberId) {
         try {
-            // ✅ Order by start_date descending to get the most recent schedule
-            String filter = "member_id=eq." + memberId + "&is_active=eq.true&order=start_date.desc&limit=1";
+            Log.d(TAG, "🔍 Fetching ALL active schedules for member: " + memberId);
+
+            // Get ALL active schedules (no limit initially)
+            String filter = "member_id=eq." + memberId + "&is_active=eq.true&order=id.desc";
             JSONArray result = client.select(SupabaseConfig.TABLE_MEMBER_WORKOUT_SCHEDULE, filter);
 
-            if (result.length() > 0) {
-                JSONObject obj = result.getJSONObject(0);
-                Map<String, Object> schedule = new HashMap<>();
-                schedule.put("id", obj.optInt("id"));
-                schedule.put("schedule_id", obj.optInt("schedule_id"));
-                schedule.put("start_date", obj.optString("start_date"));
-                schedule.put("end_date", obj.optString("end_date"));
-
-                Log.d(TAG, "✅ Found latest active schedule:");
-                Log.d(TAG, "   Schedule ID: " + schedule.get("id"));
-                Log.d(TAG, "   Start Date: " + schedule.get("start_date"));
-
-                return schedule;
-            } else {
-                Log.d(TAG, "⚠️ No active schedule found for member " + memberId);
+            if (result.length() == 0) {
+                Log.d(TAG, "⚠️ No active schedules found for member " + memberId);
+                return null;
             }
+
+            Log.d(TAG, "📊 Found " + result.length() + " active schedule(s)");
+
+            // ✅ Find the schedule with the LATEST start_date
+            Map<String, Object> latestSchedule = null;
+            Date latestDate = null;
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
+
+            for (int i = 0; i < result.length(); i++) {
+                JSONObject obj = result.getJSONObject(i);
+                String startDateStr = obj.optString("start_date");
+
+                try {
+                    // Parse the start_date
+                    Date startDate = sdf.parse(startDateStr.split("\\.")[0]); // Remove milliseconds if present
+
+                    Log.d(TAG, "   Schedule ID " + obj.optInt("id") + " - Start: " + startDateStr);
+
+                    // Compare dates
+                    if (latestDate == null || startDate.after(latestDate)) {
+                        latestDate = startDate;
+                        latestSchedule = new HashMap<>();
+                        latestSchedule.put("id", obj.optInt("id"));
+                        latestSchedule.put("schedule_id", obj.optInt("schedule_id"));
+                        latestSchedule.put("start_date", startDateStr);
+                        latestSchedule.put("end_date", obj.optString("end_date"));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing date for schedule " + obj.optInt("id") + ": " + e.getMessage());
+                }
+            }
+
+            if (latestSchedule != null) {
+                Log.d(TAG, "✅ LATEST schedule selected:");
+                Log.d(TAG, "   Schedule ID: " + latestSchedule.get("id"));
+                Log.d(TAG, "   Start Date: " + latestSchedule.get("start_date"));
+                return latestSchedule;
+            } else {
+                Log.e(TAG, "❌ Could not determine latest schedule (date parsing failed)");
+                // Fallback: return the first one (highest ID)
+                JSONObject obj = result.getJSONObject(0);
+                Map<String, Object> fallbackSchedule = new HashMap<>();
+                fallbackSchedule.put("id", obj.optInt("id"));
+                fallbackSchedule.put("schedule_id", obj.optInt("schedule_id"));
+                fallbackSchedule.put("start_date", obj.optString("start_date"));
+                fallbackSchedule.put("end_date", obj.optString("end_date"));
+                Log.d(TAG, "⚠️ Using fallback (highest ID): " + fallbackSchedule.get("id"));
+                return fallbackSchedule;
+            }
+
         } catch (Exception e) {
             Log.e(TAG, "Error getting member workout schedule: " + e.getMessage());
             e.printStackTrace();
