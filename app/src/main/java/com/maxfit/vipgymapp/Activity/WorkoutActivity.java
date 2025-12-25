@@ -729,9 +729,10 @@ public class WorkoutActivity extends AppCompatActivity {
             startServiceTimer("REST", 60, true);
 
         } else {
+            // ✅ ONLY send notification when ALL workouts are complete
             updateStreak();
             updateWidget();
-            sendWorkoutCompletedNotification();
+            sendWorkoutCompletedNotification(); // This is correct - only called at the end
             showCelebrationAnimation();
             sendServiceAction(WorkoutForegroundService.ACTION_STOP_SERVICE);
         }
