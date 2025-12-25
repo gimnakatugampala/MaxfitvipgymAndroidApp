@@ -14,25 +14,24 @@ import android.util.Log;
 
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.maxfit.vipgymapp.Repository.HealthRepository;
+import com.maxfit.vipgymapp.Utils.SessionManager;
+
 import java.util.Calendar;
 import java.util.Locale;
-import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/**
- * HealthTracker Service - Auto-tracks health metrics in background
- * Tracks: Steps, Distance, Calories, Active Minutes
- */
 public class HealthTrackerService extends Service implements SensorEventListener {
 
     private static final String TAG = "HealthTrackerService";
     private static final String PREFS_NAME = "HealthTrackerPrefs";
-
-    // Broadcast action for health data updates
     public static final String ACTION_HEALTH_UPDATE = "com.maxfit.vipgymapp.HEALTH_UPDATE";
 
     private SensorManager sensorManager;
     private Sensor stepCounterSensor;
     private SharedPreferences prefs;
+    private ExecutorService databaseExecutor; // For background DB operations
 
     // Health data
     private int todaySteps = 0;
@@ -41,24 +40,18 @@ public class HealthTrackerService extends Service implements SensorEventListener
     private int caloriesBurned = 0;
     private int activeMinutes = 0;
 
-    // User profile data (from SharedPreferences)
-    private int userHeightCm = 170; // Default
-    private double userWeightKg = 70.0; // Default
-    private int userAge = 30; // Default
-    private String userGender = "M"; // Default
+    // User profile
+    private int userHeightCm = 170;
+    private double userWeightKg = 70.0;
+    private int userAge = 30;
+    private String userGender = "M";
     private double strideLength = 0.0;
 
-    // Handler for periodic updates
     private Handler updateHandler = new Handler();
     private Runnable updateRunnable;
 
-    // Handler for real-time UI updates (every 10 seconds)
     private Handler realtimeHandler = new Handler();
     private Runnable realtimeUpdateRunnable;
-
-    // For simulated data (when sensor not available)
-    private boolean useSimulatedSteps = false;
-    private Random random = new Random();
 
     @Override
     public void onCreate() {
@@ -66,48 +59,80 @@ public class HealthTrackerService extends Service implements SensorEventListener
         Log.d(TAG, "✅ HealthTracker Service Created");
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        databaseExecutor = Executors.newSingleThreadExecutor(); // Init executor
 
-        // Load user profile
         loadUserProfile();
 
-        // Initialize sensor manager
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
 
         if (stepCounterSensor != null) {
-            sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL);
-            Log.d(TAG, "✅ Step Counter Sensor registered");
-            useSimulatedSteps = false;
+            sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_UI);
         } else {
-            Log.w(TAG, "⚠️ Step Counter Sensor not available - using simulated data");
-            useSimulatedSteps = true;
+            Log.e(TAG, "❌ Step Counter Sensor NOT available");
         }
 
-        // Load today's data
+        // ✅ Check if day changed while app was closed
+        checkAndSavePreviousDayData();
+
         loadTodayData();
-
-        // Calculate initial metrics
         updateDerivedMetrics();
-
-        // Broadcast initial data immediately
         broadcastHealthUpdate();
-
-        // Start periodic updates (every 5 minutes for saving)
         startPeriodicUpdates();
-
-        // Start real-time updates (every 10 seconds for UI)
         startRealtimeUpdates();
+    }
 
-        // If using simulated data, start simulation
-        if (useSimulatedSteps) {
-            startSimulatedSteps();
+    // ✅ NEW METHOD: Check if the date has changed and save old data
+    private void checkAndSavePreviousDayData() {
+        String today = getTodayDate();
+        String lastSavedDate = prefs.getString("last_date", "");
+
+        // If stored date is different from today, and not empty, it means we have data from a past day
+        if (!lastSavedDate.isEmpty() && !today.equals(lastSavedDate)) {
+            Log.d(TAG, "🗓 Day changed from " + lastSavedDate + " to " + today + ". Saving yesterday's data.");
+
+            int savedSteps = prefs.getInt("today_steps", 0);
+
+            // Re-calculate metrics for the saved steps to ensure accuracy
+            calculateStrideLength();
+            double savedDist = (savedSteps * strideLength) / 1000.0;
+
+            // Calculate BMR based calories for a full 24-hour day
+            double bmr;
+            if (userGender.equals("M")) {
+                bmr = 88.362 + (13.397 * userWeightKg) + (4.799 * userHeightCm) - (5.677 * userAge);
+            } else {
+                bmr = 447.593 + (9.247 * userWeightKg) + (3.098 * userHeightCm) - (4.330 * userAge);
+            }
+            int savedCalories = (int) (bmr + (savedSteps * 0.04)); // Full BMR + Active Calories
+            int savedActive = savedSteps / 100;
+
+            // Upload to Database
+            saveToDatabase(lastSavedDate, savedSteps, savedDist, savedCalories, savedActive);
+
+            // Reset for today
+            todaySteps = 0;
+            initialStepCount = -1; // Will be reset on next sensor event
+            saveTodayData(); // Save the reset state with today's date
+        }
+    }
+
+    // ✅ NEW METHOD: Upload to Database
+    private void saveToDatabase(String date, int steps, double dist, int cal, int active) {
+        SessionManager sessionManager = new SessionManager(this);
+        int memberId = sessionManager.getMemberId();
+
+        if (memberId != -1) {
+            databaseExecutor.execute(() -> {
+                HealthRepository repo = new HealthRepository();
+                repo.saveDailyStats(memberId, date, steps, dist, cal, active);
+            });
         }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "HealthTracker Service Started");
-        return START_STICKY; // Restart if killed
+        return START_STICKY;
     }
 
     @Override
@@ -115,134 +140,86 @@ public class HealthTrackerService extends Service implements SensorEventListener
         if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
             int totalSteps = (int) event.values[0];
 
-            if (initialStepCount == -1) {
-                // First reading - initialize
-                initialStepCount = totalSteps - getTodayStoredSteps();
-                Log.d(TAG, "📍 Initial step count: " + initialStepCount);
+            // ✅ Check for Day Change while app is running
+            String today = getTodayDate();
+            String lastSavedDate = prefs.getString("last_date", "");
+
+            if (!today.equals(lastSavedDate)) {
+                // Day changed while running! Save current `todaySteps` as yesterday's data
+                checkAndSavePreviousDayData();
+
+                // Reset baseline for the new day
+                initialStepCount = totalSteps;
+                todaySteps = 0;
             }
 
-            // Calculate today's steps
-            todaySteps = totalSteps - initialStepCount;
+            if (initialStepCount == -1) {
+                initialStepCount = totalSteps - getTodayStoredSteps();
+                saveTodayData();
+            }
 
-            // Update derived metrics
+            int newTodaySteps = totalSteps - initialStepCount;
+            if (newTodaySteps < 0) {
+                initialStepCount = totalSteps;
+                newTodaySteps = 0;
+            }
+
+            todaySteps = newTodaySteps;
             updateDerivedMetrics();
-
-            // Save data
             saveTodayData();
-
-            Log.d(TAG, "📊 Steps: " + todaySteps + " | Distance: " + String.format("%.2f", distanceKm) + " km | Calories: " + caloriesBurned);
+            broadcastHealthUpdate();
         }
     }
 
     @Override
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // Not needed
-    }
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
-    /**
-     * Calculate distance, calories, and active minutes based on steps
-     */
     private void updateDerivedMetrics() {
-        // Calculate stride length if not set
-        if (strideLength == 0) {
-            calculateStrideLength();
-        }
-
-        // Calculate distance (meters to kilometers)
+        if (strideLength == 0) calculateStrideLength();
         distanceKm = (todaySteps * strideLength) / 1000.0;
-
-        // Calculate calories burned
         caloriesBurned = calculateCalories();
-
-        // Calculate active minutes (approximate: 100 steps = 1 minute of activity)
         activeMinutes = todaySteps / 100;
-
-        Log.d(TAG, "📊 Calculated metrics - Steps: " + todaySteps +
-                ", Distance: " + String.format("%.2f", distanceKm) + " km" +
-                ", Calories: " + caloriesBurned +
-                ", Active: " + activeMinutes + " min");
     }
 
-    /**
-     * Calculate stride length based on height and gender
-     */
     private void calculateStrideLength() {
         double heightMeters = userHeightCm / 100.0;
-
-        if (userGender.equals("M")) {
-            strideLength = heightMeters * 0.415; // Men's formula
-        } else {
-            strideLength = heightMeters * 0.413; // Women's formula
-        }
-
-        Log.d(TAG, "📏 Calculated stride length: " + String.format("%.3f", strideLength) + " meters");
+        strideLength = (userGender.equals("M")) ? heightMeters * 0.415 : heightMeters * 0.413;
     }
 
-    /**
-     * Calculate calories burned
-     * Formula: BMR (hourly rate) + Active calories from steps
-     */
     private int calculateCalories() {
-        // Calculate BMR (Basal Metabolic Rate)
         double bmr;
         if (userGender.equals("M")) {
-            // Men: BMR = 88.362 + (13.397 × weight) + (4.799 × height) - (5.677 × age)
             bmr = 88.362 + (13.397 * userWeightKg) + (4.799 * userHeightCm) - (5.677 * userAge);
         } else {
-            // Women: BMR = 447.593 + (9.247 × weight) + (3.098 × height) - (4.330 × age)
             bmr = 447.593 + (9.247 * userWeightKg) + (3.098 * userHeightCm) - (4.330 * userAge);
         }
-
-        // Get hours since midnight
         Calendar cal = Calendar.getInstance();
         double hoursSinceMidnight = cal.get(Calendar.HOUR_OF_DAY) + (cal.get(Calendar.MINUTE) / 60.0);
-
-        // Resting calories burned so far today
         double restingCalories = (bmr / 24) * hoursSinceMidnight;
-
-        // Active calories from steps (approximately 0.04 calories per step)
-        double activeCalories = todaySteps * 0.04;
-
-        return (int) (restingCalories + activeCalories);
+        return (int) (restingCalories + (todaySteps * 0.04));
     }
 
-    /**
-     * Load user profile from SharedPreferences
-     */
     private void loadUserProfile() {
         SharedPreferences userPrefs = getSharedPreferences("UserProfile", MODE_PRIVATE);
         userHeightCm = userPrefs.getInt("height_cm", 170);
         userWeightKg = (double) userPrefs.getFloat("weight_kg", 70.0f);
         userAge = userPrefs.getInt("age", 30);
         userGender = userPrefs.getString("gender", "M");
-
-        Log.d(TAG, "👤 User Profile: H=" + userHeightCm + "cm, W=" + userWeightKg + "kg, Age=" + userAge + ", Gender=" + userGender);
     }
 
-    /**
-     * Load today's stored data
-     */
     private void loadTodayData() {
         String today = getTodayDate();
         String lastSavedDate = prefs.getString("last_date", "");
-
         if (today.equals(lastSavedDate)) {
-            // Load existing data for today
             todaySteps = prefs.getInt("today_steps", 0);
             initialStepCount = prefs.getInt("initial_step_count", -1);
-            Log.d(TAG, "📅 Loaded today's data: " + todaySteps + " steps");
         } else {
-            // New day - reset
             todaySteps = 0;
             initialStepCount = -1;
             saveTodayData();
-            Log.d(TAG, "📅 New day started - data reset");
         }
     }
 
-    /**
-     * Save today's data
-     */
     private void saveTodayData() {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("last_date", getTodayDate());
@@ -251,166 +228,66 @@ public class HealthTrackerService extends Service implements SensorEventListener
         editor.apply();
     }
 
-    /**
-     * Get today's steps from storage
-     */
     private int getTodayStoredSteps() {
         String today = getTodayDate();
-        String lastSavedDate = prefs.getString("last_date", "");
-
-        if (today.equals(lastSavedDate)) {
+        if (today.equals(prefs.getString("last_date", ""))) {
             return prefs.getInt("today_steps", 0);
         }
         return 0;
     }
 
-    /**
-     * Get today's date as string
-     */
     private String getTodayDate() {
         Calendar cal = Calendar.getInstance();
         return String.format(Locale.US, "%04d-%02d-%02d",
-                cal.get(Calendar.YEAR),
-                cal.get(Calendar.MONTH) + 1,
-                cal.get(Calendar.DAY_OF_MONTH));
+                cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH));
     }
 
-    /**
-     * Broadcast health data update to UI
-     */
     private void broadcastHealthUpdate() {
         Intent intent = new Intent(ACTION_HEALTH_UPDATE);
         intent.putExtra("steps", todaySteps);
         intent.putExtra("distance_km", distanceKm);
         intent.putExtra("calories", caloriesBurned);
         intent.putExtra("active_minutes", activeMinutes);
-
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-
-        Log.d(TAG, "📡 Broadcast sent - Steps: " + todaySteps + ", Distance: " + String.format("%.2f", distanceKm) + " km");
     }
 
-    /**
-     * Start periodic updates every 5 minutes (for saving data)
-     */
     private void startPeriodicUpdates() {
         updateRunnable = new Runnable() {
             @Override
             public void run() {
-                // Recalculate metrics (in case time-based calculations need updating)
+                // Check date again in case it changed during quiet period
+                checkAndSavePreviousDayData();
+
                 updateDerivedMetrics();
                 saveTodayData();
-
-                // Schedule next update in 5 minutes
                 updateHandler.postDelayed(this, 5 * 60 * 1000);
             }
         };
-
-        // Start first update in 5 minutes
         updateHandler.postDelayed(updateRunnable, 5 * 60 * 1000);
-        Log.d(TAG, "⏰ Periodic updates started (5 min interval)");
     }
 
-    /**
-     * Start real-time UI updates every 10 seconds
-     */
     private void startRealtimeUpdates() {
         realtimeUpdateRunnable = new Runnable() {
             @Override
             public void run() {
-                // Recalculate and broadcast to UI
                 updateDerivedMetrics();
                 broadcastHealthUpdate();
-
-                // Schedule next update in 10 seconds
-                realtimeHandler.postDelayed(this, 10 * 1000);
+                realtimeHandler.postDelayed(this, 30 * 1000);
             }
         };
-
-        // Start immediately, then every 10 seconds
         realtimeHandler.post(realtimeUpdateRunnable);
-        Log.d(TAG, "⏰ Real-time updates started (10 sec interval)");
-    }
-
-    /**
-     * Start simulated step updates (for devices without step counter sensor)
-     */
-    private void startSimulatedSteps() {
-        Log.d(TAG, "🤖 Starting simulated step counter");
-
-        Handler simulationHandler = new Handler();
-        Runnable simulationRunnable = new Runnable() {
-            @Override
-            public void run() {
-                // Simulate 5-15 steps every 10 seconds (realistic walking pace)
-                int newSteps = random.nextInt(11) + 5; // 5-15 steps
-                todaySteps += newSteps;
-
-                // Update metrics
-                updateDerivedMetrics();
-                saveTodayData();
-
-                Log.d(TAG, "🤖 Simulated steps: +" + newSteps + " (Total: " + todaySteps + ")");
-
-                // Continue simulation
-                simulationHandler.postDelayed(this, 10 * 1000);
-            }
-        };
-
-        // Start after 2 seconds
-        simulationHandler.postDelayed(simulationRunnable, 2000);
-        Log.d(TAG, "🤖 Simulated step updates started");
-    }
-
-    /**
-     * Public method to get current steps (called from other components)
-     */
-    public static int getCurrentSteps(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String today = getTodayDateStatic();
-        String lastDate = prefs.getString("last_date", "");
-
-        if (today.equals(lastDate)) {
-            return prefs.getInt("today_steps", 0);
-        }
-        return 0;
-    }
-
-    /**
-     * Static helper to get today's date
-     */
-    private static String getTodayDateStatic() {
-        Calendar cal = Calendar.getInstance();
-        return String.format(Locale.US, "%04d-%02d-%02d",
-                cal.get(Calendar.YEAR),
-                cal.get(Calendar.MONTH) + 1,
-                cal.get(Calendar.DAY_OF_MONTH));
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-
-        // Unregister sensor
-        if (sensorManager != null) {
-            sensorManager.unregisterListener(this);
-        }
-
-        // Stop periodic updates
-        if (updateHandler != null && updateRunnable != null) {
-            updateHandler.removeCallbacks(updateRunnable);
-        }
-
-        // Stop real-time updates
-        if (realtimeHandler != null && realtimeUpdateRunnable != null) {
-            realtimeHandler.removeCallbacks(realtimeUpdateRunnable);
-        }
-
+        if (sensorManager != null) sensorManager.unregisterListener(this);
+        if (updateHandler != null) updateHandler.removeCallbacks(updateRunnable);
+        if (realtimeHandler != null) realtimeHandler.removeCallbacks(realtimeUpdateRunnable);
+        if (databaseExecutor != null) databaseExecutor.shutdown();
         Log.d(TAG, "🛑 HealthTracker Service Destroyed");
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
-        return null; // Not a bound service
-    }
+    public IBinder onBind(Intent intent) { return null; }
 }
