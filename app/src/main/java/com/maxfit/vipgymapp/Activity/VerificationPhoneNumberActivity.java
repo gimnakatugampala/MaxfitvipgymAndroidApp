@@ -14,26 +14,25 @@ import com.google.android.material.button.MaterialButton;
 
 public class VerificationPhoneNumberActivity extends AppCompatActivity {
 
-    // Declare the EditText fields
     private EditText codeInput1, codeInput2, codeInput3, codeInput4, codeInput5;
     private MaterialButton btnVerify;
 
-    // Add these fields to store data from intent
     private String phoneNumber;
+    private String expectedOtp; // The code sent via SMS
     private int memberId;
     private boolean memberExists;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_verification);  // Make sure this is the correct layout file
+        setContentView(R.layout.activity_verification);
 
         // Get data from intent
         phoneNumber = getIntent().getStringExtra("phoneNumber");
+        expectedOtp = getIntent().getStringExtra("otp"); // Retrieve the OTP generated in previous screen
         memberId = getIntent().getIntExtra("memberId", -1);
         memberExists = getIntent().getBooleanExtra("memberExists", false);
 
-        // Initialize the EditText fields
         codeInput1 = findViewById(R.id.codeInput1);
         codeInput2 = findViewById(R.id.codeInput2);
         codeInput3 = findViewById(R.id.codeInput3);
@@ -41,79 +40,76 @@ public class VerificationPhoneNumberActivity extends AppCompatActivity {
         codeInput5 = findViewById(R.id.codeInput5);
         btnVerify = findViewById(R.id.btnVerify);
 
-        // Set listeners for each EditText to automatically move focus to the next or previous field
+        setupInputs();
+
+        btnVerify.setOnClickListener(v -> {
+            String enteredCode = codeInput1.getText().toString() +
+                    codeInput2.getText().toString() +
+                    codeInput3.getText().toString() +
+                    codeInput4.getText().toString() +
+                    codeInput5.getText().toString();
+
+            if (enteredCode.length() == 5) {
+                // Verify against the actual OTP sent
+                if (enteredCode.equals(expectedOtp)) {
+                    Toast.makeText(VerificationPhoneNumberActivity.this, "Verification Successful!", Toast.LENGTH_SHORT).show();
+
+                    Intent intent = new Intent(VerificationPhoneNumberActivity.this, MembershipDetailsActivity.class);
+                    intent.putExtra("phoneNumber", phoneNumber);
+                    intent.putExtra("memberId", memberId);
+                    intent.putExtra("memberExists", memberExists);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    Toast.makeText(VerificationPhoneNumberActivity.this, "Invalid Code. Please try again.", Toast.LENGTH_SHORT).show();
+                    clearInputs();
+                }
+            } else {
+                Toast.makeText(VerificationPhoneNumberActivity.this, "Please enter the full 5-digit code", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void clearInputs() {
+        codeInput1.setText("");
+        codeInput2.setText("");
+        codeInput3.setText("");
+        codeInput4.setText("");
+        codeInput5.setText("");
+        codeInput1.requestFocus();
+    }
+
+    private void setupInputs() {
         setKeyListener(codeInput1, null, codeInput2);
         setKeyListener(codeInput2, codeInput1, codeInput3);
         setKeyListener(codeInput3, codeInput2, codeInput4);
         setKeyListener(codeInput4, codeInput3, codeInput5);
         setKeyListener(codeInput5, codeInput4, null);
-
-        // Set up the verify button's action
-        btnVerify.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Get the verification code from all input fields
-                String code = codeInput1.getText().toString() +
-                        codeInput2.getText().toString() +
-                        codeInput3.getText().toString() +
-                        codeInput4.getText().toString() +
-                        codeInput5.getText().toString();
-
-                // Check if all digits have been entered
-                if (code.length() == 5) {
-                    // Check if all characters are digits
-                    if (isValidCode(code)) {
-                        // Proceed with the verification
-                        Toast.makeText(VerificationPhoneNumberActivity.this, "Code Verified", Toast.LENGTH_SHORT).show();
-
-                        // Navigate to the Membership Details Activity WITH ALL DATA
-                        Intent intent = new Intent(VerificationPhoneNumberActivity.this, MembershipDetailsActivity.class);
-                        intent.putExtra("phoneNumber", phoneNumber);
-                        intent.putExtra("memberId", memberId);
-                        intent.putExtra("memberExists", memberExists);
-                        startActivity(intent);
-                        finish(); // Finish the current activity to prevent the user from going back
-                    } else {
-                        // If not all characters are digits, show an error
-                        Toast.makeText(VerificationPhoneNumberActivity.this, "Please enter a valid numeric code", Toast.LENGTH_SHORT).show();
-                    }
-                } else {
-                    // Show an error message to the user if the code is not complete
-                    Toast.makeText(VerificationPhoneNumberActivity.this, "Please enter the full verification code", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
     }
 
-    // Method to set up key listeners to automatically move focus
     private void setKeyListener(final EditText currentField, final EditText previousField, final EditText nextField) {
-        currentField.setOnKeyListener(new View.OnKeyListener() {
-            @Override
-            public boolean onKey(View v, int keyCode, KeyEvent event) {
-                // Check if the delete key is pressed (keyCode == KEYCODE_DEL)
-                if (keyCode == KeyEvent.KEYCODE_DEL && event.getAction() == KeyEvent.ACTION_DOWN) {
-                    if (currentField.getText().length() == 0) {
-                        // If the current field is empty, move focus to the previous field (if available)
-                        if (previousField != null) {
-                            previousField.requestFocus();
-                        }
-                    }
+        currentField.setOnKeyListener((v, keyCode, event) -> {
+            if (keyCode == KeyEvent.KEYCODE_DEL && event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (currentField.getText().length() == 0 && previousField != null) {
+                    previousField.requestFocus();
                 }
-
-                // If the current field has a digit, move focus to the next field (if available)
-                if (currentField.getText().length() == 1 && keyCode != KeyEvent.KEYCODE_DEL) {
-                    if (nextField != null) {
-                        nextField.requestFocus();
-                    }
-                }
-                return false;
             }
+            // Move forward logic is usually handled by TextWatcher, but keeping your key listener approach
+            if (currentField.getText().length() == 1 && keyCode != KeyEvent.KEYCODE_DEL && nextField != null) {
+                nextField.requestFocus();
+            }
+            return false;
         });
-    }
 
-    // Check if the verification code contains only digits
-    private boolean isValidCode(String code) {
-        // Check if the code contains only numeric digits
-        return code.matches("\\d{5}");  // Ensure the code is exactly 5 digits
+        // Adding simple text changed listener for smoother forward navigation
+        currentField.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.length() == 1 && nextField != null) {
+                    nextField.requestFocus();
+                }
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
     }
 }
