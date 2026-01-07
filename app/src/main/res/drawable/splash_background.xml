@@ -9,7 +9,7 @@
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@drawable/logo_maxfit" />
+            android:src="@drawable/maxfit_logo_small" />
     </item>
 
 </layer-list>
