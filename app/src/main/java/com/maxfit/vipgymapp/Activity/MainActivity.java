@@ -19,7 +19,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
-// ✅ NEW IMPORTS FOR WORKMANAGER
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.NetworkType;
@@ -35,17 +34,13 @@ import com.maxfit.vipgymapp.Repository.MemberRepository;
 import com.maxfit.vipgymapp.Service.HealthTrackerService;
 import com.maxfit.vipgymapp.Utils.SessionManager;
 import com.maxfit.vipgymapp.Widget.WorkoutWidgetProvider;
-import com.maxfit.vipgymapp.Worker.DailySyncWorker; // Import your worker
+import com.maxfit.vipgymapp.Worker.DailySyncWorker;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-
-
-
 
 public class MainActivity extends AppCompatActivity {
 
@@ -75,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
         // ✅ Check if user is approved (is_active = true)
         checkUserApprovalStatus();
 
+        // ✅ NEW: Update Last Active Timestamp
+        updateMemberLastActive();
+
         setContentView(R.layout.activity_main);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -84,8 +82,6 @@ public class MainActivity extends AppCompatActivity {
                         new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
             }
         }
-
-
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
@@ -129,15 +125,23 @@ public class MainActivity extends AppCompatActivity {
         // ✅ SCHEDULE BACKGROUND SYNC
         scheduleDailySync();
 
-        // ✅ NEW: SCHEDULE DAILY MOTIVATION
+        // ✅ SCHEDULE DAILY MOTIVATION
         scheduleMotivationWorker();
     }
 
+    // ✅ NEW METHOD: Updates the "last_active" timestamp in the database
+    private void updateMemberLastActive() {
+        if (sessionManager.isLoggedIn()) {
+            int memberId = sessionManager.getMemberId();
+            executorService.execute(() -> {
+                // This calls the method we added to MemberRepository previously
+                memberRepository.updateLastActive(memberId);
+            });
+        }
+    }
 
-    // ✅ NEW METHOD: Schedule Motivation Notification
+    // Schedule Motivation Notification
     private void scheduleMotivationWorker() {
-        // Schedule to run periodically every 24 hours
-        // You can tweak the constraints if you only want it to run when on Wi-Fi etc.
         Constraints constraints = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
@@ -145,18 +149,16 @@ public class MainActivity extends AppCompatActivity {
         PeriodicWorkRequest motivationRequest =
                 new PeriodicWorkRequest.Builder(DailyMotivationWorker.class, 24, TimeUnit.HOURS)
                         .setConstraints(constraints)
-                        // Add an initial delay if you want to target a specific time relative to first install
-                        //.setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
                         .build();
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
                 "DailyMotivation",
-                ExistingPeriodicWorkPolicy.KEEP, // Use KEEP so it doesn't reset existing schedule
+                ExistingPeriodicWorkPolicy.KEEP,
                 motivationRequest
         );
     }
 
-    // ✅ NEW METHOD: Check if user account is approved
+    // Check if user account is approved
     private void checkUserApprovalStatus() {
         Member member = sessionManager.getMemberData();
         if (member == null) {
@@ -164,10 +166,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Check in background
         executorService.execute(() -> {
             try {
-                // Get fresh data from database
                 Member freshMember = memberRepository.getMemberById(member.getId());
 
                 if (freshMember == null) {
@@ -175,7 +175,6 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
 
-                // ✅ Check if account is still active
                 if (!freshMember.isActive()) {
                     runOnUiThread(() -> {
                         Toast.makeText(this, "Your account is pending approval", Toast.LENGTH_LONG).show();
@@ -183,7 +182,6 @@ public class MainActivity extends AppCompatActivity {
                     });
                 }
 
-                // Update session with fresh data
                 runOnUiThread(() -> sessionManager.updateMemberData(freshMember));
 
             } catch (Exception e) {
@@ -192,21 +190,17 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // ✅ NEW METHOD: Schedule Background Sync
+    // Schedule Background Sync
     private void scheduleDailySync() {
-        // Defines conditions: Must have internet
         Constraints constraints = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
 
-        // Run periodically (e.g., every 12 hours) to check if "yesterday" needs uploading
         PeriodicWorkRequest syncRequest =
                 new PeriodicWorkRequest.Builder(DailySyncWorker.class, 12, TimeUnit.HOURS)
                         .setConstraints(constraints)
                         .build();
 
-        // Enqueue unique work (keeps running even if app restarts)
-        // 'KEEP' means if it's already scheduled, don't replace/restart it
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
                 "DailyHealthSync",
                 ExistingPeriodicWorkPolicy.KEEP,
@@ -297,11 +291,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // ✅ Check session and approval status on resume
         if (!sessionManager.isLoggedIn()) {
             redirectToLogin();
         } else {
             checkUserApprovalStatus();
+            // Optional: Update last active on resume as well
+            updateMemberLastActive();
         }
     }
 

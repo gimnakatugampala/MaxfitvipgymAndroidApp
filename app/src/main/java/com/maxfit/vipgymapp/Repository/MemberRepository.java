@@ -9,9 +9,12 @@ import com.maxfit.vipgymapp.Network.SupabaseClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class MemberRepository {
@@ -95,7 +98,10 @@ public class MemberRepository {
         try {
             String filter = "id=eq." + memberId;
             JSONObject data = new JSONObject();
-            data.put("last_active", "now()");
+            // Use Java formatted date to ensure compatibility with Supabase/Postgres
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
+            data.put("last_active", sdf.format(new Date()));
+
             client.update(SupabaseConfig.TABLE_MEMBERS, filter, data);
         } catch (Exception e) { Log.e(TAG, "Error: " + e.getMessage()); }
     }
