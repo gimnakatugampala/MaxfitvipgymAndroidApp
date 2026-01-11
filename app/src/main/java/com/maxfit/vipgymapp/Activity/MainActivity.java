@@ -1,5 +1,7 @@
 package com.maxfit.vipgymapp.Activity;
 
+import com.maxfit.vipgymapp.Worker.DailyMotivationWorker;
+
 import android.Manifest;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
@@ -126,6 +128,32 @@ public class MainActivity extends AppCompatActivity {
 
         // ✅ SCHEDULE BACKGROUND SYNC
         scheduleDailySync();
+
+        // ✅ NEW: SCHEDULE DAILY MOTIVATION
+        scheduleMotivationWorker();
+    }
+
+
+    // ✅ NEW METHOD: Schedule Motivation Notification
+    private void scheduleMotivationWorker() {
+        // Schedule to run periodically every 24 hours
+        // You can tweak the constraints if you only want it to run when on Wi-Fi etc.
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
+
+        PeriodicWorkRequest motivationRequest =
+                new PeriodicWorkRequest.Builder(DailyMotivationWorker.class, 24, TimeUnit.HOURS)
+                        .setConstraints(constraints)
+                        // Add an initial delay if you want to target a specific time relative to first install
+                        //.setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+                        .build();
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "DailyMotivation",
+                ExistingPeriodicWorkPolicy.KEEP, // Use KEEP so it doesn't reset existing schedule
+                motivationRequest
+        );
     }
 
     // ✅ NEW METHOD: Check if user account is approved
