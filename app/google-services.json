@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "555489934638",
+    "project_id": "maxfitgymapp",
+    "storage_bucket": "maxfitgymapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:555489934638:android:5c6c57d462de65dd254ebf",
+        "android_client_info": {
+          "package_name": "com.maxfit.vipgymapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXIUZX9lizUp6Eu0L9na7BqFUFHnpQrEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

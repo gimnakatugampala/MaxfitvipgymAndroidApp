@@ -25,6 +25,9 @@ import androidx.work.NetworkType;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
+// ✅ NEW IMPORT FOR ANALYTICS
+import com.google.firebase.analytics.FirebaseAnalytics;
+
 import com.maxfit.vipgymapp.Model.Member;
 import com.maxfit.vipgymapp.R;
 import com.maxfit.vipgymapp.Fragments.HomeFragment;
@@ -52,9 +55,15 @@ public class MainActivity extends AppCompatActivity {
     private MemberRepository memberRepository;
     private ExecutorService executorService;
 
+    // ✅ Firebase Analytics Instance
+    private FirebaseAnalytics mFirebaseAnalytics;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ✅ Initialize Firebase Analytics
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
 
         // ✅ Initialize repositories and executors
         sessionManager = new SessionManager(this);
@@ -65,12 +74,22 @@ public class MainActivity extends AppCompatActivity {
         if (!sessionManager.isLoggedIn()) {
             redirectToLogin();
             return;
+        } else {
+            // ✅ Log the User ID to Analytics (Links activity to specific member)
+            int memberId = sessionManager.getMemberId();
+            mFirebaseAnalytics.setUserId(String.valueOf(memberId));
+
+            // Optional: Log a custom "app_open" event with user properties
+            Bundle bundle = new Bundle();
+            bundle.putInt("member_id", memberId);
+            bundle.putString("login_status", "logged_in");
+            mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.APP_OPEN, bundle);
         }
 
         // ✅ Check if user is approved (is_active = true)
         checkUserApprovalStatus();
 
-        // ✅ NEW: Update Last Active Timestamp
+        // ✅ Update Last Active Timestamp
         updateMemberLastActive();
 
         setContentView(R.layout.activity_main);
@@ -116,7 +135,17 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNavigationView.setOnItemSelectedListener(item -> {
             Fragment selectedFragment = fragmentMap.get(item.getItemId());
-            return selectedFragment != null && loadFragment(selectedFragment);
+
+            // ✅ Log Screen View Events manually if needed (Firebase does this automatically too)
+            if (selectedFragment != null) {
+                Bundle bundle = new Bundle();
+                bundle.putString(FirebaseAnalytics.Param.SCREEN_NAME, selectedFragment.getClass().getSimpleName());
+                bundle.putString(FirebaseAnalytics.Param.SCREEN_CLASS, selectedFragment.getClass().getSimpleName());
+                mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW, bundle);
+
+                return loadFragment(selectedFragment);
+            }
+            return false;
         });
 
         // Ask to pin widget on first launch
@@ -129,12 +158,11 @@ public class MainActivity extends AppCompatActivity {
         scheduleMotivationWorker();
     }
 
-    // ✅ NEW METHOD: Updates the "last_active" timestamp in the database
+    // Updates the "last_active" timestamp in the database
     private void updateMemberLastActive() {
         if (sessionManager.isLoggedIn()) {
             int memberId = sessionManager.getMemberId();
             executorService.execute(() -> {
-                // This calls the method we added to MemberRepository previously
                 memberRepository.updateLastActive(memberId);
             });
         }
@@ -295,7 +323,6 @@ public class MainActivity extends AppCompatActivity {
             redirectToLogin();
         } else {
             checkUserApprovalStatus();
-            // Optional: Update last active on resume as well
             updateMemberLastActive();
         }
     }
